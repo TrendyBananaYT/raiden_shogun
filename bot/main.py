@@ -185,7 +185,7 @@ async def audit(interaction: discord.Interaction, type: str):
 
 @bot.tree.command(name="warchest", description="Calculate a nation's warchest requirements (5 days of upkeep).")
 @app_commands.describe(nation_id="Nation ID for which to calculate the warchest.")
-async def warchest(interaction: discord.Interaction, nation_id: str):
+async def warchest(interaction: discord.Interaction, nation_id: int):
     nation_info = get_data.GET_NATION_DATA(nation_id, API_KEY)
 
     print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
@@ -244,74 +244,95 @@ async def warchest(interaction: discord.Interaction, nation_id: str):
 
 @bot.tree.command(name="wars", description="Check the active wars and military of a nation.")
 @app_commands.describe(nation_id="Nation ID to check.")
-async def audit(interaction: discord.Interaction, nation_id: str):
-    query = f'''
-    {{
-      nations(id:{nation_id}) {{ data {{
-        id
-        nation_name
-        leader_name
-        soldiers
-        tanks
-        aircraft
-        ships
-        gasoline
-        munitions
+async def wars(interaction: discord.Interaction, nation_id: int):
+    infra = 0.0
+    nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
+    print(f"Starting Wars Checker For: {nation.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+
+    for city in nation.get("cities", []):
+        infra += city.get("infrastructure", 0)
+
+    # Separate wars into defensive and offensive
+    defensive_wars = []  # where this nation is defender
+    offensive_wars = []  # where this nation is attacker
+    
+    self_side = ""
+    enemy_side = ""
+
+    # Helper to format one side's info
+    def format_side(war, side: str):
+        data = war.get(side, {})
+        # If fortified then add the fortress symbol
+        fort = "🏰" if war.get(f"{side}_fortify") else ""
+        n_id = data.get("id", "N/A")
+        n_name = data.get("nation_name", f"Nation {n_id}")
+        url = f"https://politicsandwar.com/nation/id={n_id}"
+        # Military counts
+        mil = f"{data.get('soldiers',0)} {data.get('tanks',0)} {data.get('aircraft',0)} {data.get('ships',0)}"
+        # MAPs and resistance depending on side
+        maps = war.get("att_points") if side == "attacker" else war.get("def_points")
+        res = war.get("att_resistance") if side == "attacker" else war.get("def_resistance")
         
-        wars {{
-            id
-            attacker
-            defender
-            war_type
-            turns_left
-            att_points
-            def_points
-            att_peace
-            def_peace
-            att_resistance
-            def_resistance
-            att_fortify
-            def_fortify
-            ground_control
-            air_superiority
-            naval_blockade
-        }}
-
-        cities {{
-            infrastructure
-        }}
-      }}}}
-    }}
-    '''
-    url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        await interaction.response.send_message(f"API request failed: {e}")
-        return
-
-    try:
-        nation = response.json()
-        # Extract the nation info from the nested structure.
-        nation_list = nation.get("data", {}).get("nations", {}).get("data", [])
-        if not nation_list:
-            await interaction.response.send_message("Nation not found in the API response.")
-            return
-        nation_info = nation_list[0]
-    except Exception as e:
-        await interaction.response.send_message(f"Error parsing API response: {e}")
-        return
+        print(f"Formate Side: {fort}{n_id} [ {n_name} ]({url}) | {mil} | {maps} | {res}")
+        return f"{fort}{n_id} [ {n_name} ]({url}) | {mil} | {maps} | {res}"
     
+    # Loop through wars from the nation data
+    for war in nation.get("wars", []):
+        # Determine if our nation is attacker or defender.
+        if nation_id == war.get("attacker", {}).get("id"):
+            self_side = "attacker"
+            enemy_side = "defender"
+            offensive_wars.append(war)
+        else:
+            self_side = "defender"
+            enemy_side = "attacker"
+            defensive_wars.append(war)
 
-    print(f"Checking Wars For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+    # Build war line for each war
+    def build_war_line(war, self_side: str, enemy_side: str):
+        # War id and turns left
+        war_id = war.get("id", "N/A")
+        turns = war.get("turns_left", "?")
+        
+        # Flags for overall war advantages
+        gc = "AT" if war.get("ground_control") == "attacker" else "DF"
+        air = "AT" if war.get("air_superiority") == "attacker" else "DF"
+        nb = "AT" if war.get("naval_blockade") == "attacker" else "DF"
+        peace = "AT" if war.get("att_peace") else ("DF" if war.get("def_peace") else "")
+        flags = f"{gc} {air} {nb} {peace}"
+        
+        self_info = format_side(war, self_side)
+        enemy_info = format_side(war, enemy_side)
+        print(f"Build War Line: {war_id} (t{turns}) | {self_info} | {flags} | {enemy_info}")
+        return f"{war_id} (t{turns}) | {self_info} | {flags} | {enemy_info}"
 
-    # Check if the nation is in a war
-    if not nation_info.get("wars"):
-        await interaction.response.send_message("This nation is not in any wars.")
-        return
+    # Build strings for each section
+    def format_wars_list(wars_list, self_side: str, enemy_side: str):
+        lines = []
+        for w in wars_list:
+            lines.append(build_war_line(w, self_side, enemy_side))
+        print(lines)
+        return "\n".join(lines) if lines else "None"
+
+    # For wars where our nation is defender, self_side is "defender"
+    def_wars_str = format_wars_list(defensive_wars, "defender", "attacker")
+    # For wars where our nation is attacker, self_side is "attacker"
+    off_wars_str = format_wars_list(offensive_wars, "attacker", "defender")
+
+    # Build the main embed
+    embed = discord.Embed(
+        title=f"Wars for {nation.get('nation_name', 'N/A')} \"{nation.get('leader_name', 'N/A')}\"",
+        description=f"Nation: **[{nation.get('nation_name', 'N/A')}](https://politicsandwar.com/nation/id={nation_id})** \"{nation.get('leader_name', 'N/A')}\"\nInfra: {infra:,.2f} | Score: {nation.get('score', 0):,.2f}",
+        color=discord.Color.purple(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    embed.add_field(name="Defensive Wars", value=def_wars_str, inline=False)
+    embed.add_field(name="Offensive Wars", value=off_wars_str, inline=False)
+    embed.set_footer(text="Maintained By Ivy")
+
+    await interaction.response.send_message(embed=embed)
+
     
-    
-
 
 bot.run(BOT_TOKEN)

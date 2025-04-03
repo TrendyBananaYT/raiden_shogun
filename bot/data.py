@@ -84,6 +84,8 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
     {{
       nations(id:{nation_id}) {{ data {{
         id
+        score
+        population
         nation_name
         leader_name
         soldiers
@@ -103,7 +105,52 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         aluminum
         food
         credits
-        population
+        
+        wars {{
+            id
+            
+            attacker {{
+                id
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                money
+                coal
+                oil
+                uranium
+                iron
+                bauxite
+                lead
+                gasoline
+                munitions
+                steel
+                aluminum
+                food
+                credits
+            }}
+
+            defender {{
+                id
+            }}
+            
+            war_type
+            turns_left
+            att_points
+            def_points
+            att_peace
+            def_peace
+            att_resistance
+            def_resistance
+            att_fortify
+            def_fortify
+            ground_control
+            air_superiority
+            naval_blockade
+        }}
+        
         cities {{
           date
           infrastructure
