@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import math
 
 def calculate(nation_info, COSTS, MILITARY_COSTS):
@@ -101,11 +101,12 @@ def calculate(nation_info, COSTS, MILITARY_COSTS):
         total_munitions_factory_lead += city.get("munitions_factory", 0) * 1.5
 
         # Food Consumption: 1 Per Base-Person Per Turn and 1 Per 750 Soldiers
-        base_population = city.get("infrastructure", 0) * 100
+        base_population = int(city.get("infrastructure", 0) * 100)
         date_format = "%Y-%m-%d"
 
-        date1 = datetime.utcnow()
-        date2 = datetime.strptime(city.get("date", "2025-01-01"), date_format)
+        
+        date1 = datetime.now(timezone.utc)
+        date2 = datetime.strptime(city.get("date", "2025-01-01"), date_format).replace(tzinfo=timezone.utc)
 
         age = (date1 - date2).days
 
@@ -184,21 +185,21 @@ def calculate(nation_info, COSTS, MILITARY_COSTS):
     food_deficit = max(required_food - current_food, 0)
     credits_deficit = max(required_credits - current_credits, 0)
 
-    result = f"""
-<:money:1357103044466184412> {money_deficit:,.2f}
-<:coal:1357102730682040410>  {coal_deficit:,.2f} tons
-<:Oil:1357102740391854140> {oil_deficit:,.2f} tons
-<:uranium:1357102742799126558> {uranium_deficit:,.2f} tons
-<:iron:1357102735488581643>  {iron_deficit:,.2f} tons
-<:bauxite:1357102729411039254>  {bauxite_deficit:,.2f} tons
-<:lead:1357102736646209536> {lead_deficit:,.2f} tons
-<:gasoline:1357102734645399602>  {gasoline_deficit:,.2f} tons
-<:munitions:1357102777389814012> {munitions_deficit:,.2f} tons
-<:steel:1357105344052072618>  {steel_deficit:,.2f} tons
-<:aluminum:1357102728391819356>  {aluminum_deficit:,.2f} tons
-<:food:1357102733571784735>  {food_deficit:,.2f} tons
-<:credits:1357102732187537459>  {credits_deficit:,.2f} credits
-    """
+    result = {
+        "money_deficit": money_deficit,
+        "coal_deficit": coal_deficit,
+        "oil_deficit": oil_deficit,
+        "uranium_deficit": uranium_deficit,
+        "iron_deficit": iron_deficit,
+        "bauxite_deficit": bauxite_deficit,
+        "lead_deficit": lead_deficit,
+        "gasoline_deficit": gasoline_deficit,
+        "munitions_deficit": munitions_deficit,
+        "steel_deficit": steel_deficit,
+        "aluminum_deficit": aluminum_deficit,
+        "food_deficit": food_deficit,
+        "credits_deficit": credits_deficit,
+    }
 
     excess = {
         resource: abs(required - current) if required - current < 0 else 0
