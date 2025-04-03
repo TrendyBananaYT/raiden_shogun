@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import requests
+
 import time
 from datetime import datetime, timezone
 import pytz
@@ -10,10 +11,16 @@ import random
 import os
 
 import warchest as wc
+import data as get_data
+import vars as vars
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_KEY = os.getenv("API_KEY")
 ALLIANCE_ID = os.getenv("ALLIANCE_ID")
+
+
+COSTS = vars.COSTS
+MILITARY_COSTS = vars.MILITARY_COSTS
 
 # Set up bot with intents
 intents = discord.Intents.default()
@@ -30,43 +37,6 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"Pong! Latency: {latency:,.2f} ms")
 
 
-
-# Cost constants per turn (calculated from daily cost divided by 12 turns)
-COSTS = {
-    "coal_power": 100,          # $100/turn
-    "oil_power": 150,           # $150/turn
-    "nuclear_power": 875,       # $875/turn
-    "wind_power": 42,           # $42/turn
-    "farm": 25,                 # $25/turn
-    "uranium_mine": 417,        # $417/turn
-    "iron_mine": 134,           # $134/turn
-    "coal_mine": 34,            # $34/turn
-    "oil_refinery": 334,        # $334/turn
-    "steel_mill": 334,          # $334/turn
-    "aluminum_refinery": 209,   # $209/turn
-    "munitions_factory": 292,   # $292/turn
-    "police_station": 63,       # $63/turn
-    "hospital": 84,             # $84/turn
-    "recycling_center": 209,    # $209/turn
-    "subway": 271,              # $271/turn
-    "supermarket": 50,          # $50/turn
-    "bank": 150,              # $150/turn
-    "shopping_mall": 450,       # $450/turn
-    "stadium": 1013             # $1013/turn
-}
-
-# Military upkeep costs per turn (derived from daily cost/12)
-MILITARY_COSTS = {
-    "soldiers": 1.88 / 12,      # per soldier
-    "tanks": 75 / 12,           # per tank
-    "aircraft": 750 / 12,       # per aircraft
-    "ships": 5062.5 / 12        # per ship
-}
-
-
-# -------------------------------
-# Existing Activity Audit Command and Paginator
-# -------------------------------
 class ActivityPaginator(discord.ui.View):
     def __init__(self, results, timeout=120):
         super().__init__(timeout=timeout)
@@ -123,80 +93,7 @@ class ActivityPaginator(discord.ui.View):
 @bot.tree.command(name="audit", description="Audit alliance members based on different criteria.")
 @app_commands.describe(type="Type of audit to perform: activity, warchest, nsp")
 async def audit(interaction: discord.Interaction, type: str):
-    query = f"""{{
-    nations(first:500, vmode: false, alliance_id:{ALLIANCE_ID}) {{data {{
-        id
-        nation_name
-        leader_name
-        soldiers
-        tanks
-        aircraft
-        ships
-        money
-        oil
-        uranium
-        iron
-        bauxite
-        lead
-        coal
-        gasoline
-        munitions
-        steel
-        aluminum
-        food
-        credits
-        population
-        defensive_wars_count
-        last_active
-        discord
-        cities {{
-            date
-            infrastructure
-            coal_power
-            oil_power
-            nuclear_power
-            wind_power
-            farm
-            uranium_mine
-            iron_mine
-            coal_mine
-            oil_refinery
-            steel_mill
-            aluminum_refinery
-            munitions_factory
-            police_station
-            hospital
-            recycling_center
-            subway
-            supermarket
-            bank
-            shopping_mall
-            stadium
-            barracks
-            factory
-            hangar
-            drydock
-        }}
-    }}}}}}"""
-    
-    url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        await interaction.response.send_message(f"API request failed: {e}")
-        return
-    
-    try:
-        data = response.json()
-        members = data.get("data", {}).get("nations", {}).get("data", [])
-        if not members:
-            await interaction.response.send_message("No members found in the API response.")
-            return
-    except (ValueError, KeyError, TypeError) as e:
-        await interaction.response.send_message(f"Error parsing API response: {e}")
-        return
+    members = get_data.GET_ALLIANCE_MEMBERS(ALLIANCE_ID, API_KEY)
 
     audit_results = []
     current_time = time.time()
@@ -289,80 +186,7 @@ async def audit(interaction: discord.Interaction, type: str):
 @bot.tree.command(name="warchest", description="Calculate a nation's warchest requirements (5 days of upkeep).")
 @app_commands.describe(nation_id="Nation ID for which to calculate the warchest.")
 async def warchest(interaction: discord.Interaction, nation_id: str):
-    query = f'''
-    {{
-      nations(id:{nation_id}) {{ data {{
-        id
-        nation_name
-        leader_name
-        soldiers
-        tanks
-        aircraft
-        ships
-        money
-        coal
-        oil
-        uranium
-        iron
-        bauxite
-        lead
-        gasoline
-        munitions
-        steel
-        aluminum
-        food
-        credits
-        population
-        cities {{
-          date
-          infrastructure
-          coal_power
-          oil_power
-          nuclear_power
-          wind_power
-          farm
-          uranium_mine
-          iron_mine
-          coal_mine
-          oil_refinery
-          steel_mill
-          aluminum_refinery
-          munitions_factory
-          police_station
-          hospital
-          recycling_center
-          subway
-          supermarket
-          bank
-          shopping_mall
-          stadium
-          barracks
-          factory
-          hangar
-          drydock
-        }}
-      }}}}
-    }}
-    '''
-    url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        await interaction.response.send_message(f"API request failed: {e}")
-        return
-
-    try:
-        nation = response.json()
-        # Extract the nation info from the nested structure.
-        nation_list = nation.get("data", {}).get("nations", {}).get("data", [])
-        if not nation_list:
-            await interaction.response.send_message("Nation not found in the API response.")
-            return
-        nation_info = nation_list[0]
-    except Exception as e:
-        await interaction.response.send_message(f"Error parsing API response: {e}")
-        return
+    nation_info = get_data.GET_NATION_DATA(nation_id, API_KEY)
 
     print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
 
@@ -405,7 +229,7 @@ async def warchest(interaction: discord.Interaction, nation_id: str):
 
     # Build the embed modal with all resource deficits.
     embed = discord.Embed(
-        title=f':moneybag: Warchest for {nation_info.get('nation_name', 'N/A')} "{nation_info.get('leader_name', 'N/A')}"',
+        title=f''':moneybag: Warchest for {nation_info.get('nation_name', 'N/A')} "{nation_info.get('leader_name', 'N/A')}"''',
         description="Warchest for 60 Turns (5 Days)",
         color=discord.Color.purple(),
         timestamp=datetime.now(timezone.utc)
