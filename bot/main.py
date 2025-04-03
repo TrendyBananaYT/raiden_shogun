@@ -416,4 +416,78 @@ async def warchest(interaction: discord.Interaction, nation_id: str):
 
     await interaction.response.send_message(embed=embed)
 
+
+
+@bot.tree.command(name="wars", description="Check the active wars and military of a nation.")
+@app_commands.describe(nation_id="Nation ID to check.")
+async def audit(interaction: discord.Interaction, nation_id: str):
+    query = f'''
+    {{
+      nations(id:{nation_id}) {{ data {{
+        id
+        nation_name
+        leader_name
+        soldiers
+        tanks
+        aircraft
+        ships
+        gasoline
+        munitions
+        
+        wars {{
+            id
+            attacker
+            defender
+            war_type
+            turns_left
+            att_points
+            def_points
+            att_peace
+            def_peace
+            att_resistance
+            def_resistance
+            att_fortify
+            def_fortify
+            ground_control
+            air_superiority
+            naval_blockade
+        }}
+
+        cities {{
+            infrastructure
+        }}
+      }}}}
+    }}
+    '''
+    url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        await interaction.response.send_message(f"API request failed: {e}")
+        return
+
+    try:
+        nation = response.json()
+        # Extract the nation info from the nested structure.
+        nation_list = nation.get("data", {}).get("nations", {}).get("data", [])
+        if not nation_list:
+            await interaction.response.send_message("Nation not found in the API response.")
+            return
+        nation_info = nation_list[0]
+    except Exception as e:
+        await interaction.response.send_message(f"Error parsing API response: {e}")
+        return
+    
+
+    print(f"Checking Wars For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+
+    # Check if the nation is in a war
+    if not nation_info.get("wars"):
+        await interaction.response.send_message("This nation is not in any wars.")
+        return
+    
+    
+
+
 bot.run(BOT_TOKEN)
