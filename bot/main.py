@@ -329,18 +329,10 @@ async def wars(interaction: discord.Interaction, nation_id: int):
     print(f"Starting Wars Checker For: {nation_name} || https://politicsandwar.com/nation/id={nation_id}")
     
     embed = discord.Embed(
-        title=f"Wars for {nation_name}",
-        description="All current active wars (turns left > 0):",
+        title="",
+        description=f"[{nation_id} - {nation_name}](https://politicsandwar.com/nation/id={nation_id}) of [{alliance_name}](https://politicsandwar.com/alliance/id={alliance_id})",
         color=discord.Color.purple(),
         timestamp=datetime.now(timezone.utc)
-    )
-    
-    # Nation info
-    embed.add_field(
-        name="Nation",
-        value=f"[{nation_id} - {nation_name}](https://politicsandwar.com/nation/id={nation_id}) of "
-              f"[{alliance_name}](https://politicsandwar.com/alliance/id={alliance_id})",
-        inline=False
     )
     embed.add_field(name="Score", value=str(nation.get("score", "N/A")), inline=False)
     
@@ -355,8 +347,12 @@ async def wars(interaction: discord.Interaction, nation_id: int):
     for war in active_wars:
         if nation_id == int(war.get("defender", {}).get("id", -1)):
             war_type = "defensive"
+            d_id = ""
+            a_id = nation_id
         elif nation_id == int(war.get("attacker", {}).get("id", -1)):
             war_type = "offensive"
+            d_id = nation_id
+            a_id = ""
         else:
             continue
 
@@ -367,11 +363,10 @@ async def wars(interaction: discord.Interaction, nation_id: int):
         att_peace = bool_to_control(war.get("att_peace", False))
         def_peace = bool_to_control(war.get("def_peace", False))
         
-        att_controls = f"{ground_control} {air_superiority} {naval_blockade} {att_peace}"
+        att_controls = f"{ground_control} {air_superiority} {naval_blockade} {att_peace or def_peace}"
         def_controls = f"{ground_control} {air_superiority} {naval_blockade} {def_peace}"
         
         attacker = war.get("attacker", {})
-        a_id = attacker.get("id", "N/A")
         a_name = attacker.get("nation_name", "Unknown")
         a_url = f"https://politicsandwar.com/nation/id={a_id}"
         a_fort = "🏰" if war.get("att_fortify", False) else ""
@@ -384,7 +379,6 @@ async def wars(interaction: discord.Interaction, nation_id: int):
         a_res = war.get("att_resistance", "N/A")
         
         defender = war.get("defender", {})
-        d_id = defender.get("id", "N/A")
         d_name = defender.get("nation_name", "Unknown")
         d_url = f"https://politicsandwar.com/nation/id={d_id}"
         d_fort = "🏰" if war.get("def_fortify", False) else ""
@@ -397,18 +391,18 @@ async def wars(interaction: discord.Interaction, nation_id: int):
         d_res = war.get("def_resistance", "N/A")
         
         war_line = (
-            f"T:{turns_left} | "
-            f"{a_fort}{a_id} [{a_name}]({a_url}) | {a_stats} | {a_MAPs} | {a_res} | {att_controls} | "
-            f"{d_fort}{d_id} [{d_name}]({d_url}) | {d_stats} | {d_MAPs} | {d_res} | {def_controls}"
+            f"Turns:{turns_left} | Control: {ground_control} {air_superiority} {naval_blockade} {att_peace or def_peace}"
+            f"{a_fort}{a_id} [{a_name}]({a_url}) | {a_stats} | {a_MAPs} | {a_res} |"
+            f"{d_res} | {d_MAPs} | {d_stats} | [{d_name}]({d_url}) | {d_id}{d_fort}"
         )
 
         war_texts.append(war_line)
     
-    war_text = "```\n" + "\n".join(war_texts) + "\n```" if war_texts else "No active wars."
+    war_text = "\n" + "\n".join(war_texts) + "\n" if war_texts else "No active wars."
     embed.add_field(name="Active Wars", value=war_text, inline=False)
     
     embed.set_footer(text="Maintained By Ivy")
-    await interaction.response.send_message(war_text)
+    await interaction.response.send_message(embed=embed)
 
     
 
