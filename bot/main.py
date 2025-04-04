@@ -187,11 +187,6 @@ async def audit(interaction: discord.Interaction, type: str):
 @app_commands.describe(suggestion="Your suggestion.")
 async def suggest(interaction: discord.Interaction, suggestion: str):
     try:
-        ivy = await bot.fetch_user(vars.IVY_ID)  # Ensure we're getting the correct user
-        if ivy is None:
-            await interaction.response.send_message("Could not find Ivy. Please try again later.", ephemeral=True)
-            return
-
         embed = discord.Embed(
             title="Suggestion Received",
             description=f"From: {interaction.user.mention}\n",
@@ -224,6 +219,43 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
+
+
+@bot.tree.command(name="report-a-bug", description="Report A Bug To The Bot!")
+@app_commands.describe(report="The Bug.")
+async def report(interaction: discord.Interaction, report: str):
+    try:
+        embed = discord.Embed(
+            title="Suggestion Received",
+            description=f"From: {interaction.user.mention}\n",
+            color=discord.Color.green(),
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Bug Report", value=report, inline=False)
+
+        channel = bot.get_channel(vars.BUG_REPORTS_CHANNEL_ID)
+        if channel is None:
+            await interaction.response.send_message("Bug Reports channel not found. Please try again later.", ephemeral=True)
+            return
+        
+        await channel.send(
+            embed=embed,
+            content=f"<@&{vars.DEVELOPER_ROLE_ID}>",
+            allowed_mentions=discord.AllowedMentions(roles=True)
+        )
+        await interaction.response.send_message("Your report has been sent!", ephemeral=True)
+
+        report_data = {
+            "user_id": interaction.user.id,
+            "username": str(interaction.user),
+            "bug_report": report,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        dataBase.insert(report_data, 'bug_reports')
+
+    
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
 @bot.tree.command(name="warchest", description="Calculate a nation's warchest requirements (5 days of upkeep).")
