@@ -183,7 +183,7 @@ async def audit(interaction: discord.Interaction, type: str):
 
 
 
-@bot.tree.command(name="suggest", description="Suggest Something To The Bot!")
+@bot.tree.command(name="suggest", description="Suggest Something To The Bot! (Please Only Suggest One Thing At A Time)")
 @app_commands.describe(suggestion="Your suggestion.")
 async def suggest(interaction: discord.Interaction, suggestion: str):
     try:
@@ -221,7 +221,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
 
 
 
-@bot.tree.command(name="report-a-bug", description="Report A Bug To The Bot!")
+@bot.tree.command(name="report-a-bug", description="Report A Bug To The Bot! (Please Only Report One Bug At A Time)")
 @app_commands.describe(report="The Bug.")
 async def report(interaction: discord.Interaction, report: str):
     try:
