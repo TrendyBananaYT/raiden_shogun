@@ -27,6 +27,12 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
         defensive_wars_count
         last_active
         discord
+
+        alliance {{
+            id
+            name
+        }}
+
         cities {{
             date
             infrastructure
@@ -134,6 +140,25 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
 
             defender {{
                 id
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                money
+                coal
+                oil
+                uranium
+                iron
+                bauxite
+                lead
+                gasoline
+                munitions
+                steel
+                aluminum
+                food
+                credits
             }}
             
             war_type

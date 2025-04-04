@@ -241,97 +241,99 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
     await interaction.response.send_message(embed=embed)
 
 
-
 @bot.tree.command(name="wars", description="Check the active wars and military of a nation.")
 @app_commands.describe(nation_id="Nation ID to check.")
 async def wars(interaction: discord.Interaction, nation_id: int):
-    infra = 0.0
+    # Retrieve nation data (including wars) from your API.
     nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
-    print(f"Starting Wars Checker For: {nation.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
-
-    for city in nation.get("cities", []):
-        infra += city.get("infrastructure", 0)
-
-    # Separate wars into defensive and offensive
-    defensive_wars = []  # where this nation is defender
-    offensive_wars = []  # where this nation is attacker
+    nation_name = nation.get("nation_name", "N/A")
+    alliance = nation.get("alliance", {})
+    alliance_name = alliance.get("name", "None")
+    alliance_id = alliance.get("id", "N/A")
     
-    self_side = ""
-    enemy_side = ""
-
-    # Helper to format one side's info
-    def format_side(war, side: str):
-        data = war.get(side, {})
-        # If fortified then add the fortress symbol
-        fort = "🏰" if war.get(f"{side}_fortify") else ""
-        n_id = data.get("id", "N/A")
-        n_name = data.get("nation_name", f"Nation {n_id}")
-        url = f"https://politicsandwar.com/nation/id={n_id}"
-        # Military counts
-        mil = f"{data.get('soldiers',0)} {data.get('tanks',0)} {data.get('aircraft',0)} {data.get('ships',0)}"
-        # MAPs and resistance depending on side
-        maps = war.get("att_points") if side == "attacker" else war.get("def_points")
-        res = war.get("att_resistance") if side == "attacker" else war.get("def_resistance")
-        
-        print(f"Formate Side: {fort}{n_id} [ {n_name} ]({url}) | {mil} | {maps} | {res}")
-        return f"{fort}{n_id} [ {n_name} ]({url}) | {mil} | {maps} | {res}"
+    print(f"Starting Wars Checker For: {nation_name} || https://politicsandwar.com/nation/id={nation_id}")
     
-    # Loop through wars from the nation data
-    for war in nation.get("wars", []):
-        # Determine if our nation is attacker or defender.
-        if nation_id == war.get("attacker", {}).get("id"):
-            self_side = "attacker"
-            enemy_side = "defender"
-            offensive_wars.append(war)
-        else:
-            self_side = "defender"
-            enemy_side = "attacker"
-            defensive_wars.append(war)
-
-    # Build war line for each war
-    def build_war_line(war, self_side: str, enemy_side: str):
-        # War id and turns left
-        war_id = war.get("id", "N/A")
-        turns = war.get("turns_left", "?")
-        
-        # Flags for overall war advantages
-        gc = "AT" if war.get("ground_control") == "attacker" else "DF"
-        air = "AT" if war.get("air_superiority") == "attacker" else "DF"
-        nb = "AT" if war.get("naval_blockade") == "attacker" else "DF"
-        peace = "AT" if war.get("att_peace") else ("DF" if war.get("def_peace") else "")
-        flags = f"{gc} {air} {nb} {peace}"
-        
-        self_info = format_side(war, self_side)
-        enemy_info = format_side(war, enemy_side)
-        print(f"Build War Line: {war_id} (t{turns}) | {self_info} | {flags} | {enemy_info}")
-        return f"{war_id} (t{turns}) | {self_info} | {flags} | {enemy_info}"
-
-    # Build strings for each section
-    def format_wars_list(wars_list, self_side: str, enemy_side: str):
-        lines = []
-        for w in wars_list:
-            lines.append(build_war_line(w, self_side, enemy_side))
-        print(lines)
-        return "\n".join(lines) if lines else "None"
-
-    # For wars where our nation is defender, self_side is "defender"
-    def_wars_str = format_wars_list(defensive_wars, "defender", "attacker")
-    # For wars where our nation is attacker, self_side is "attacker"
-    off_wars_str = format_wars_list(offensive_wars, "attacker", "defender")
-
-    # Build the main embed
     embed = discord.Embed(
-        title=f"Wars for {nation.get('nation_name', 'N/A')} \"{nation.get('leader_name', 'N/A')}\"",
-        description=f"Nation: **[{nation.get('nation_name', 'N/A')}](https://politicsandwar.com/nation/id={nation_id})** \"{nation.get('leader_name', 'N/A')}\"\nInfra: {infra:,.2f} | Score: {nation.get('score', 0):,.2f}",
+        title=f"Wars for {nation_name}",
+        description="All current active wars (turns left > 0):",
         color=discord.Color.purple(),
         timestamp=datetime.now(timezone.utc)
     )
+    
+    # Nation info
+    embed.add_field(
+        name="Nation",
+        value=f"[{nation_id} - {nation_name}](https://politicsandwar.com/nation/id={nation_id}) of "
+              f"[{alliance_name}](https://politicsandwar.com/alliance/id={alliance_id})",
+        inline=False
+    )
+    embed.add_field(name="Score", value=str(nation.get("score", "N/A")), inline=False)
+    
+    wars_list = nation.get("wars", [])
+    active_wars = [war for war in wars_list if int(war.get("turns_left", 0)) > 0]
 
-    embed.add_field(name="Defensive Wars", value=def_wars_str, inline=False)
-    embed.add_field(name="Offensive Wars", value=off_wars_str, inline=False)
+    war_texts = []
+
+    def bool_to_control(value):
+        return "AT" if value else "DF"
+    
+    for war in active_wars:
+        if nation_id == int(war.get("defender", {}).get("id", -1)):
+            war_type = "defensive"
+        elif nation_id == int(war.get("attacker", {}).get("id", -1)):
+            war_type = "offensive"
+        else:
+            continue
+
+        turns_left = war.get("turns_left", "N/A")
+        ground_control = bool_to_control(war.get("ground_control", False))
+        air_superiority = bool_to_control(war.get("air_superiority", False))
+        naval_blockade = bool_to_control(war.get("naval_blockade", False))
+        att_peace = bool_to_control(war.get("att_peace", False))
+        def_peace = bool_to_control(war.get("def_peace", False))
+        
+        att_controls = f"{ground_control} {air_superiority} {naval_blockade} {att_peace}"
+        def_controls = f"{ground_control} {air_superiority} {naval_blockade} {def_peace}"
+        
+        attacker = war.get("attacker", {})
+        a_id = attacker.get("id", "N/A")
+        a_name = attacker.get("nation_name", "Unknown")
+        a_url = f"https://politicsandwar.com/nation/id={a_id}"
+        a_fort = "🏰" if war.get("att_fortify", False) else ""
+        a_soldiers = attacker.get("soldiers", "0")
+        a_tanks = attacker.get("tanks", "0")
+        a_aircraft = attacker.get("aircraft", "0")
+        a_ships = attacker.get("ships", "0")
+        a_stats = f"{a_soldiers} {a_tanks} {a_aircraft} {a_ships}"
+        a_MAPs = war.get("att_points", "N/A")
+        a_res = war.get("att_resistance", "N/A")
+        
+        defender = war.get("defender", {})
+        d_id = defender.get("id", "N/A")
+        d_name = defender.get("nation_name", "Unknown")
+        d_url = f"https://politicsandwar.com/nation/id={d_id}"
+        d_fort = "🏰" if war.get("def_fortify", False) else ""
+        d_soldiers = defender.get("soldiers", "0")
+        d_tanks = defender.get("tanks", "0")
+        d_aircraft = defender.get("aircraft", "0")
+        d_ships = defender.get("ships", "0")
+        d_stats = f"{d_soldiers} {d_tanks} {d_aircraft} {d_ships}"
+        d_MAPs = war.get("def_points", "N/A")
+        d_res = war.get("def_resistance", "N/A")
+        
+        war_line = (
+            f"T:{turns_left} | "
+            f"{a_fort}{a_id} [{a_name}]({a_url}) | {a_stats} | {a_MAPs} | {a_res} | {att_controls} | "
+            f"{d_fort}{d_id} [{d_name}]({d_url}) | {d_stats} | {d_MAPs} | {d_res} | {def_controls}"
+        )
+
+        war_texts.append(war_line)
+    
+    war_text = "```\n" + "\n".join(war_texts) + "\n```" if war_texts else "No active wars."
+    embed.add_field(name="Active Wars", value=war_text, inline=False)
+    
     embed.set_footer(text="Maintained By Ivy")
-
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(war_text)
 
     
 
