@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands
+from discord import app_commands, AllowedMentions
 from discord.ext import commands
 import requests
 
@@ -13,6 +13,7 @@ import os
 import warchest as wc
 import data as get_data
 import vars as vars
+import db as dataBase
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_KEY = os.getenv("API_KEY")
@@ -180,6 +181,48 @@ async def audit(interaction: discord.Interaction, type: str):
     paginator = ActivityPaginator(audit_results)
     await interaction.response.send_message(embed=paginator.get_embed(), view=paginator)
 
+
+
+@bot.tree.command(name="suggest", description="Suggest Something To The Bot!")
+@app_commands.describe(suggestion="Your suggestion.")
+async def suggest(interaction: discord.Interaction, suggestion: str):
+    try:
+        ivy = await bot.fetch_user(vars.IVY_ID)  # Ensure we're getting the correct user
+        if ivy is None:
+            await interaction.response.send_message("Could not find Ivy. Please try again later.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="Suggestion Received",
+            description=f"From: {interaction.user.mention}\n",
+            color=discord.Color.green(),
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Suggestion", value=suggestion, inline=False)
+
+        channel = bot.get_channel(vars.SUGGESTIONS_CHANNEL_ID)
+        if channel is None:
+            await interaction.response.send_message("Suggestion channel not found. Please try again later.", ephemeral=True)
+            return
+        
+        await channel.send(
+            embed=embed,
+            content=f"<@&{vars.DEVELOPER_ROLE_ID}>",
+            allowed_mentions=discord.AllowedMentions(roles=True)
+        )
+        await interaction.response.send_message("Your suggestion has been sent!", ephemeral=True)
+
+        suggestion_data = {
+            "user_id": interaction.user.id,
+            "username": str(interaction.user),
+            "suggestion": suggestion,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        dataBase.insert(suggestion_data, 'suggestions')
+
+    
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
 

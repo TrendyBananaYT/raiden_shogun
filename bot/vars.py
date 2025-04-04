@@ -27,3 +27,7 @@ MILITARY_COSTS = {
     "aircraft": 750 / 12,       # per aircraft per turn
     "ships": 5062.5 / 12        # per ship per turn
 }
+
+IVY_ID = 860564164828725299
+DEVELOPER_ROLE_ID = 1357562379927293977
+SUGGESTIONS_CHANNEL_ID = 1357568104481423502
