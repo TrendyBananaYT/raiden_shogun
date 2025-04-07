@@ -111,6 +111,11 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         aluminum
         food
         credits
+
+        alliance {{
+            id
+            name
+        }}
         
         wars {{
             id
@@ -136,6 +141,11 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
                 aluminum
                 food
                 credits
+
+                alliance {{
+                    id
+                    name
+                }}
             }}
 
             defender {{
@@ -159,6 +169,11 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
                 aluminum
                 food
                 credits
+
+                alliance {{
+                    id
+                    name
+                }}
             }}
             
             war_type

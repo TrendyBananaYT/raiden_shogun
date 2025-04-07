@@ -70,7 +70,7 @@ class ActivityPaginator(discord.ui.View):
         # Add fields in grid style (2 columns)
         for idx, result in enumerate(page_results, start=1):
             embed.add_field(name="\u200b", value=result, inline=True)
-        embed.set_footer(text=f"Page {self.current_page + 1}/{len(self.pages)} • Activity audit performed by the alliance audit bot")
+        embed.set_footer(text=f"Page {self.current_page + 1}/{len(self.pages)} • Bot Maintained By Ivy Banana <3") 
         return embed
 
     @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary)
@@ -99,6 +99,7 @@ async def audit(interaction: discord.Interaction, type: str):
     audit_results = []
     current_time = time.time()
     one_day_seconds = 86400  # 1 day in seconds
+    type = type.lower()
 
     print(f"Starting Audit For {len(members)} Members Of Alliance: https://politicsandwar.com/alliance/id={ALLIANCE_ID}")
 
@@ -319,90 +320,113 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
 @bot.tree.command(name="wars", description="Check the active wars and military of a nation.")
 @app_commands.describe(nation_id="Nation ID to check.")
 async def wars(interaction: discord.Interaction, nation_id: int):
-    # Retrieve nation data (including wars) from your API.
+    # Retrieve nation data from your API.
     nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
     nation_name = nation.get("nation_name", "N/A")
     alliance = nation.get("alliance", {})
     alliance_name = alliance.get("name", "None")
     alliance_id = alliance.get("id", "N/A")
     
-    print(f"Starting Wars Checker For: {nation_name} || https://politicsandwar.com/nation/id={nation_id}")
-    
-    embed = discord.Embed(
-        title="",
-        description=f"[{nation_id} - {nation_name}](https://politicsandwar.com/nation/id={nation_id}) of [{alliance_name}](https://politicsandwar.com/alliance/id={alliance_id})",
-        color=discord.Color.purple(),
-        timestamp=datetime.now(timezone.utc)
+    # Prepare basic nation information (only once).
+    header_info = (
+        f"**{nation_name} of {alliance_name}**\n"
+        f"Nation: {nation_id}-{nation_name} | Alliance: {alliance_name} (ID: {alliance_id})\n"
+        f"Score: {nation.get('score', 'N/A')} | Pop: {nation.get('population', 'N/A')} | Leader: {nation.get('leader_name', 'N/A')}\n"
+        f"{'-'*85}\n"
     )
-    embed.add_field(name="Score", value=str(nation.get("score", "N/A")), inline=False)
     
     wars_list = nation.get("wars", [])
-    active_wars = [war for war in wars_list if int(war.get("turns_left", 0)) > 0]
-
-    war_texts = []
-
-    def bool_to_control(value):
-        return "AT" if value else "DF"
+    offensive_wars = []  # where our nation is attacker.
+    defensive_wars = []  # where our nation is defender.
     
-    for war in active_wars:
-        if nation_id == int(war.get("defender", {}).get("id", -1)):
-            war_type = "defensive"
-            d_id = ""
-            a_id = nation_id
-        elif nation_id == int(war.get("attacker", {}).get("id", -1)):
-            war_type = "offensive"
-            d_id = nation_id
-            a_id = ""
-        else:
+    for war in wars_list:
+        try:
+            turns_left = int(war.get("turns_left", 0))
+        except Exception:
+            turns_left = 0
+        if turns_left <= 0:
             continue
-
-        turns_left = war.get("turns_left", "N/A")
-        ground_control = bool_to_control(war.get("ground_control", False))
-        air_superiority = bool_to_control(war.get("air_superiority", False))
-        naval_blockade = bool_to_control(war.get("naval_blockade", False))
-        att_peace = bool_to_control(war.get("att_peace", False))
-        def_peace = bool_to_control(war.get("def_peace", False))
-        
-        att_controls = f"{ground_control} {air_superiority} {naval_blockade} {att_peace or def_peace}"
-        def_controls = f"{ground_control} {air_superiority} {naval_blockade} {def_peace}"
-        
-        attacker = war.get("attacker", {})
-        a_name = attacker.get("nation_name", "Unknown")
-        a_url = f"https://politicsandwar.com/nation/id={a_id}"
-        a_fort = "🏰" if war.get("att_fortify", False) else ""
-        a_soldiers = attacker.get("soldiers", "0")
-        a_tanks = attacker.get("tanks", "0")
-        a_aircraft = attacker.get("aircraft", "0")
-        a_ships = attacker.get("ships", "0")
-        a_stats = f"{a_soldiers} {a_tanks} {a_aircraft} {a_ships}"
-        a_MAPs = war.get("att_points", "N/A")
-        a_res = war.get("att_resistance", "N/A")
-        
+        attacker_id = int(war.get("attacker", {}).get("id", -1))
+        defender_id = int(war.get("defender", {}).get("id", -1))
+        if nation_id == attacker_id:
+            offensive_wars.append(war)
+        elif nation_id == defender_id:
+            defensive_wars.append(war)
+    
+    offensive_wars = offensive_wars[:7]
+    defensive_wars = defensive_wars[:3]
+    
+    # --- Helper Functions ---
+    def format_stats(nation):
+        # Produce a compact emoji stat string.
+        s = nation.get("soldiers", 0)
+        t = nation.get("tanks", 0)
+        a = nation.get("aircraft", 0)
+        sh = nation.get("ships", 0)
+        # For example: "🪖123 🚜45 ✈️67 🚢89"
+        return f"🪖{s} 🚜{t} ✈️{a} 🚢{sh}"
+    
+    def format_control(war, is_offensive: bool):
+        # For offensive wars, each control flag is "AT" if true, "_" if false.
+        # For defensive wars, use "DF" if true, "_" if false.
+        if is_offensive:
+            gc = "AT" if war.get("ground_control", False) else "_"
+            air = "AT" if war.get("air_superiority", False) else "_"
+            nb = "AT" if war.get("naval_blockade", False) else "_"
+            pc = "AT" if war.get("att_peace", False) else "_"
+        else:
+            gc = "DF" if war.get("ground_control", False) else "_"
+            air = "DF" if war.get("air_superiority", False) else "_"
+            nb = "DF" if war.get("naval_blockade", False) else "_"
+            pc = "DF" if war.get("def_peace", False) else "_"
+        return f"{gc} {air} {nb} {pc}"
+    
+    def truncate(text, length):
+        return text if len(text) <= length else text[:length-2] + ".."
+    
+    def format_offensive_line(war):
+        # Opponent is defender.
         defender = war.get("defender", {})
-        d_name = defender.get("nation_name", "Unknown")
-        d_url = f"https://politicsandwar.com/nation/id={d_id}"
-        d_fort = "🏰" if war.get("def_fortify", False) else ""
-        d_soldiers = defender.get("soldiers", "0")
-        d_tanks = defender.get("tanks", "0")
-        d_aircraft = defender.get("aircraft", "0")
-        d_ships = defender.get("ships", "0")
-        d_stats = f"{d_soldiers} {d_tanks} {d_aircraft} {d_ships}"
-        d_MAPs = war.get("def_points", "N/A")
-        d_res = war.get("def_resistance", "N/A")
-        
-        war_line = (
-            f"Turns:{turns_left} | Control: {ground_control} {air_superiority} {naval_blockade} {att_peace or def_peace}"
-            f"{a_fort}{a_id} [{a_name}]({a_url}) | {a_stats} | {a_MAPs} | {a_res} |"
-            f"{d_res} | {d_MAPs} | {d_stats} | [{d_name}]({d_url}) | {d_id}{d_fort}"
-        )
+        opp = f"{defender.get('id', 'N/A')}"
+        opp = truncate(opp, 12)
+        our_stats = format_stats(war.get("attacker", {}))
+        opp_stats = format_stats(defender)
+        ctrl = format_control(war, True)
+        # Format: [opp] (12) | opp_stats (12) || our_stats (12) | ctrl (7)
+        line = f"{opp:<12} | {opp_stats:<12} | {our_stats:<12} | {ctrl}"
+        return line[:85]
+    
+    def format_defensive_line(war):
+        # Our nation is defender; opponent is attacker.
+        attacker = war.get("attacker", {})
+        opp = f"{attacker.get('id', 'N/A')}-{attacker.get('nation_name', 'Unknown')}"
+        opp = truncate(opp, 12)
+        our_stats = format_stats(war.get("defender", {}))
+        opp_stats = format_stats(attacker)
+        ctrl = format_control(war, False)
+        line = f"{opp:<12} | {our_stats:<12} | {opp_stats:<12} {ctrl}"
+        return line[:85]
+    
+    def build_section(wars, is_offensive: bool, title: str):
+        if not wars:
+            return f"{title}:\nNo active wars."
+        lines = [f"{title}:"]
+        for war in wars:
+            if is_offensive:
+                lines.append(format_offensive_line(war))
+            else:
+                lines.append(format_defensive_line(war))
+        return "\n".join(lines)
+    
+    off_text = build_section(offensive_wars, True, "Offensive Wars")
+    def_text = build_section(defensive_wars, False, "Defensive Wars")
+    
+    # Combine header and sections.
+    output = header_info + "\n" + off_text + "\n\n" + def_text
+    # Wrap in a code block for monospace display.
+    output = "\n" + output + "\n"
+    await interaction.response.send_message(embed=discord.Embed(description=output, color=discord.Color.purple()))
 
-        war_texts.append(war_line)
-    
-    war_text = "\n" + "\n".join(war_texts) + "\n" if war_texts else "No active wars."
-    embed.add_field(name="Active Wars", value=war_text, inline=False)
-    
-    embed.set_footer(text="Maintained By Ivy")
-    await interaction.response.send_message(embed=embed)
 
     
 
