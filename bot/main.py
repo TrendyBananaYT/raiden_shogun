@@ -104,7 +104,6 @@ async def audit(interaction: discord.Interaction, type: str):
     print(f"Starting Audit For {len(members)} Members Of Alliance: https://politicsandwar.com/alliance/id={ALLIANCE_ID}")
 
     for member in members:
-        print(f"Checking {member['leader_name']} || {member['nation_name']} || {member['id']} || https://politicsandwar.com/nation/id={member['id']}\n")
         if type == "activity":
             last_active_str = member.get("last_active", "1970-01-01T00:00:00+00:00")
             try:
@@ -135,6 +134,7 @@ async def audit(interaction: discord.Interaction, type: str):
             header = (
                 f"**Leader:** [{member['leader_name']}]({nation_url})\n"
                 f"**Nation:** {member['nation_name']}\n"
+                f"**Discord:** {member.get('discord', 'N/A')}\n"
             )
 
             # Build a list of deficits, compact and separated by a vertical bar.
