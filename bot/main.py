@@ -58,8 +58,8 @@ class ActivityPaginator(discord.ui.View):
 
     def get_embed(self):
         embed = discord.Embed(
-            title=":alarm_clock: **Activity Audit Results**",
-            description="Below is a grid view of alliance members inactive for more than 24 hours.\nUse the buttons below to navigate through pages.",
+            title="**Audit Results**",
+            description="Below is a grid view of alliance members Violating the audit ran.\nUse the buttons below to navigate through pages.",
             color=discord.Color.purple(),
             timestamp=datetime.utcnow()
         )
@@ -93,7 +93,7 @@ class ActivityPaginator(discord.ui.View):
 
 @bot.tree.command(name="audit", description="Audit alliance members based on different criteria.")
 @app_commands.describe(type="Type of audit to perform: activity, warchest, nsp")
-async def audit(interaction: discord.Interaction, type: str):
+async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
     members = get_data.GET_ALLIANCE_MEMBERS(ALLIANCE_ID, API_KEY)
 
     audit_results = []
@@ -124,56 +124,57 @@ async def audit(interaction: discord.Interaction, type: str):
             except ValueError:
                 audit_results.append(f"Error parsing last_active for {member['leader_name']}")
         elif type == "warchest":
-            wc_result, _ = wc.calculate(member, COSTS, MILITARY_COSTS)
-            if wc_result is None:
-                audit_results.append(f"Error calculating warchest for {member['leader_name']}")
-                continue
+            if cities >= len(member.get("cities", [])):
+                wc_result, _ = wc.calculate(member, COSTS, MILITARY_COSTS)
+                if wc_result is None:
+                    audit_results.append(f"Error calculating warchest for {member['leader_name']}")
+                    continue
 
-            # Create a clickable nation URL for consistency.
-            nation_url = f"https://politicsandwar.com/nation/id={member['id']}"
-            header = (
-                f"**Leader:** [{member['leader_name']}]({nation_url})\n"
-                f"**Nation:** {member['nation_name']}\n"
-                f"**Discord:** {member.get('discord', 'N/A')}\n"
-            )
+                # Create a clickable nation URL for consistency.
+                nation_url = f"https://politicsandwar.com/nation/id={member['id']}"
+                header = (
+                    f"**Leader:** [{member['leader_name']}]({nation_url})\n"
+                    f"**Nation:** {member['nation_name']}\n"
+                    f"**Discord:** {member.get('discord', 'N/A')}\n"
+                )
 
-            # Build a list of deficits, compact and separated by a vertical bar.
-            deficits = []
-            if wc_result['money_deficit'] > 0:
-                deficits.append(f"<:money:1357103044466184412> {wc_result['money_deficit']:,.2f}\n")
-            if wc_result['coal_deficit'] > 0:
-                deficits.append(f"<:coal:1357102730682040410> {wc_result['coal_deficit']:,.2f}\n")
-            if wc_result['oil_deficit'] > 0:
-                deficits.append(f"<:Oil:1357102740391854140> {wc_result['oil_deficit']:,.2f}\n")
-            if wc_result['uranium_deficit'] > 0:
-                deficits.append(f"<:uranium:1357102742799126558> {wc_result['uranium_deficit']:,.2f}\n")
-            if wc_result['iron_deficit'] > 0:
-                deficits.append(f"<:iron:1357102735488581643> {wc_result['iron_deficit']:,.2f}\n")
-            if wc_result['bauxite_deficit'] > 0:
-                deficits.append(f"<:bauxite:1357102729411039254> {wc_result['bauxite_deficit']:,.2f}\n")
-            if wc_result['lead_deficit'] > 0:
-                deficits.append(f"<:lead:1357102736646209536> {wc_result['lead_deficit']:,.2f}\n")
-            if wc_result['gasoline_deficit'] > 0:
-                deficits.append(f"<:gasoline:1357102734645399602> {wc_result['gasoline_deficit']:,.2f}\n")
-            if wc_result['munitions_deficit'] > 0:
-                deficits.append(f"<:munitions:1357102777389814012> {wc_result['munitions_deficit']:,.2f}\n")
-            if wc_result['steel_deficit'] > 0:
-                deficits.append(f"<:steel:1357105344052072618> {wc_result['steel_deficit']:,.2f}\n")
-            if wc_result['aluminum_deficit'] > 0:
-                deficits.append(f"<:aluminum:1357102728391819356> {wc_result['aluminum_deficit']:,.2f}\n")
-            if wc_result['food_deficit'] > 0:
-                deficits.append(f"<:food:1357102733571784735> {wc_result['food_deficit']:,.2f}\n")
-            if wc_result['credits_deficit'] > 0:
-                deficits.append(f"<:credits:1357102732187537459> {wc_result['credits_deficit']:,.2f}")
-            
-            if deficits:
-                # Join deficits using a separator for compactness.
-                deficits_str = "".join(deficits)
-            else:
-                deficits_str = "**All Good!** No deficits found."
+                # Build a list of deficits, compact and separated by a vertical bar.
+                deficits = []
+                if wc_result['money_deficit'] > 0:
+                    deficits.append(f"<:money:1357103044466184412> {wc_result['money_deficit']:,.2f}\n")
+                if wc_result['coal_deficit'] > 0:
+                    deficits.append(f"<:coal:1357102730682040410> {wc_result['coal_deficit']:,.2f}\n")
+                if wc_result['oil_deficit'] > 0:
+                    deficits.append(f"<:Oil:1357102740391854140> {wc_result['oil_deficit']:,.2f}\n")
+                if wc_result['uranium_deficit'] > 0:
+                    deficits.append(f"<:uranium:1357102742799126558> {wc_result['uranium_deficit']:,.2f}\n")
+                if wc_result['iron_deficit'] > 0:
+                    deficits.append(f"<:iron:1357102735488581643> {wc_result['iron_deficit']:,.2f}\n")
+                if wc_result['bauxite_deficit'] > 0:
+                    deficits.append(f"<:bauxite:1357102729411039254> {wc_result['bauxite_deficit']:,.2f}\n")
+                if wc_result['lead_deficit'] > 0:
+                    deficits.append(f"<:lead:1357102736646209536> {wc_result['lead_deficit']:,.2f}\n")
+                if wc_result['gasoline_deficit'] > 0:
+                    deficits.append(f"<:gasoline:1357102734645399602> {wc_result['gasoline_deficit']:,.2f}\n")
+                if wc_result['munitions_deficit'] > 0:
+                    deficits.append(f"<:munitions:1357102777389814012> {wc_result['munitions_deficit']:,.2f}\n")
+                if wc_result['steel_deficit'] > 0:
+                    deficits.append(f"<:steel:1357105344052072618> {wc_result['steel_deficit']:,.2f}\n")
+                if wc_result['aluminum_deficit'] > 0:
+                    deficits.append(f"<:aluminum:1357102728391819356> {wc_result['aluminum_deficit']:,.2f}\n")
+                if wc_result['food_deficit'] > 0:
+                    deficits.append(f"<:food:1357102733571784735> {wc_result['food_deficit']:,.2f}\n")
+                if wc_result['credits_deficit'] > 0:
+                    deficits.append(f"<:credits:1357102732187537459> {wc_result['credits_deficit']:,.2f}")
                 
-            result = header + f"**Warchest Deficits:**\n{deficits_str}"
-            audit_results.append(result)
+                if deficits:
+                    # Join deficits using a separator for compactness.
+                    deficits_str = "".join(deficits)
+                else:
+                    deficits_str = "**All Good!** No deficits found."
+                    
+                result = header + f"**Warchest Deficits:**\n{deficits_str}"
+                audit_results.append(result)
         else:
             await interaction.response.send_message("Invalid audit type. Use 'activity', 'warchest', or 'nsp'.")
             return
@@ -266,7 +267,7 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
 
     print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
 
-    result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS)
+    result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS, 100)
     txt = ""
     if result is None:
         await interaction.response.send_message("Error calculating warchest. Please check the nation ID.")
