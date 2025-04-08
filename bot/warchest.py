@@ -122,8 +122,8 @@ def calculate(nation_info, COSTS, MILITARY_COSTS):
     required_lead = total_munitions_factory_lead * 60
 
 
-    required_gasoline = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2.5) * 60
-    required_munitions = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2) * 60
+    required_gasoline = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2.5) * 10
+    required_munitions = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2) * 10
     required_steel = steel_preparedness * 5
     required_aluminum = aluminum_preparedness * 5
 

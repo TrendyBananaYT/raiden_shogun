@@ -27,6 +27,7 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
         defensive_wars_count
         last_active
         discord
+        alliance_position
 
         alliance {{
             id
