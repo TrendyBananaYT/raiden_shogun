@@ -267,7 +267,7 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
 
     print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
 
-    result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS, 100)
+    result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS)
     txt = ""
     if result is None:
         await interaction.response.send_message("Error calculating warchest. Please check the nation ID.")
