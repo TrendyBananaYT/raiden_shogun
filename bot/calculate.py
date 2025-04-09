@@ -3,7 +3,7 @@ import math
 
 import vars as vars
 
-def calculate(nation_info, COSTS, MILITARY_COSTS):
+def warchest(nation_info, COSTS, MILITARY_COSTS):
     # Cost constants per turn (calculated from daily cost divided by 12 turns)
     COSTS = vars.COSTS
     MILITARY_COSTS = vars.MILITARY_COSTS
@@ -195,3 +195,7 @@ def calculate(nation_info, COSTS, MILITARY_COSTS):
 
 
     return result, excess
+
+def balance(nation_info):
+    # Bank balance of a nation
+    print("Calculating balance...")

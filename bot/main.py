@@ -22,7 +22,7 @@ import asyncio
 """
 Importing Custom Libraries
 """
-import warchest as wc
+import calculate
 import data as get_data
 import vars as vars
 import db as dataBase
@@ -156,7 +156,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                     audit_results.append(f"Error parsing last_active for {member['leader_name']}")
             elif type == "warchest":
                 if cities >= len(member.get("cities", [])):
-                    wc_result, _ = wc.calculate(member, COSTS, MILITARY_COSTS)
+                    wc_result, _ = calculate.warchest(member, COSTS, MILITARY_COSTS)
                     if wc_result is None:
                         audit_results.append(f"Error calculating warchest for {member['leader_name']}")
                         continue
@@ -299,11 +299,12 @@ async def report(interaction: discord.Interaction, report: str):
 async def legacy_warchest(interaction, nation_id: int):
     try:
         nation_info = get_data.GET_NATION_DATA(nation_id, API_KEY)
-        print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+        info(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
 
-        result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS)
+        result, excess = calculate.warchest(nation_info, COSTS, MILITARY_COSTS)
         txt = ""
         if result is None:
+            warning(f"Error calculating warchest for nation ID {nation_id}.", tag="WARCH")
             await interaction.send("Error calculating warchest. Please check the nation ID.")
             return
         else:
@@ -328,7 +329,7 @@ async def legacy_warchest(interaction, nation_id: int):
 
         # Generate query parameters only for non-zero excess values
         query_params = "&".join(
-            f"d_{key}={value}" for key, value in excess.items() if value > 0
+            f"d_{key}={math.floor(value * 100) / 100}" for key, value in excess.items() if value > 0
         )
 
         # Combine base URL with query parameters if available
@@ -373,11 +374,12 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
     try:
         nation_info = get_data.GET_NATION_DATA(nation_id, API_KEY)
 
-        info(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+        info(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id} || By {interaction.user} In {interaction.channel}")
 
-        result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS)
+        result, excess = calculate.warchest(nation_info, COSTS, MILITARY_COSTS)
         txt = ""
         if result is None:
+            error(f"Error calculating warchest for nation ID {nation_id}", tag="WARCH")
             await interaction.response.send_message("Error calculating warchest. Please check the nation ID.")
             return
         else:
@@ -398,11 +400,11 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
             """
 
         # Base URL for deposit with the alliance details
-        base_url = f"https://politicsandwar.com/alliance/id={ALLIANCE_ID}&display=bank&d_note=safekeepings"
+        base_url = f"https://politicsandwar.com/alliance/id={ALLIANCE_ID}&display=bank&d_note={nation_id}"
 
         # Generate query parameters only for non-zero excess values
         query_params = "&".join(
-            f"d_{key}={value}" for key, value in excess.items() if value > 0
+            f"d_{key}={math.floor(value * 100) / 100}" for key, value in excess.items() if value > 0
         )
 
         # Combine base URL with query parameters if available
@@ -439,6 +441,40 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
         )
         await interaction.response.send_message(embed=error_embed, ephemeral=True)
         return
+
+
+@bot.tree.command(name="bank", description="Check the bank balance of a nation.")
+@app_commands.describe(nation_id="Nation ID to check.")
+async def bank(interaction: discord.Interaction, nation_id: int):
+    # Retrieve nation data from your API.
+    nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
+    nation_name = nation.get("nation_name", "N/A")
+    alliance = nation.get("alliance", {})
+    alliance_name = alliance.get("name", "None")
+    alliance_id = alliance.get("id", "N/A")
+    
+    # Prepare basic nation information (only once).
+    header_info = (
+        f"**{nation_name} of {alliance_name}**\n"
+        f"Nation: {nation_id}-{nation_name} | Alliance: {alliance_name} (ID: {alliance_id})\n"
+        f"Score: {nation.get('score', 'N/A')} | Pop: {nation.get('population', 'N/A')} | Leader: {nation.get('leader_name', 'N/A')}\n"
+        f"{'-'*85}\n"
+    )
+    
+    # Build the bank balance text.
+    bank_balance = nation.get("bank_balance", {})
+    bank_text = "\n".join([f"{key}: {value}" for key, value in bank_balance.items() if value > 0])
+    
+    # If no balance, indicate it.
+    if not bank_text:
+        bank_text = "No funds available."
+    
+    # Combine header and bank balance.
+    output = header_info + "\n" + bank_text
+    # Wrap in a code block for monospace display.
+    output = "\n" + output + "\n"
+    
+    await interaction.response.send_message(embed=discord.Embed(description=output, color=discord.Color.purple()))
 
 
 @bot.tree.command(name="wars", description="Check the active wars and military of a nation.")
