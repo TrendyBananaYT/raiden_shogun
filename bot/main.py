@@ -1,8 +1,14 @@
+"""
+Importing Required Discord Libraries
+"""
 import discord
 from discord import app_commands, AllowedMentions
 from discord.ext import commands
 import requests
 
+"""
+Importing The Required Libraries and Modules.
+"""
 import time
 from datetime import datetime, timezone
 import pytz
@@ -10,21 +16,22 @@ import math
 import random
 import os
 import traceback
+import time
+import asyncio
 
+"""
+Importing Custom Libraries
+"""
 import warchest as wc
 import data as get_data
 import vars as vars
 import db as dataBase
+from handler import debug, info, success, warning, error, fatal, missing_data, latency_check as debug, info, success, warning, error, fatal, latency_check
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_KEY = os.getenv("API_KEY")
 ALLIANCE_ID = os.getenv("ALLIANCE_ID")
-
-
-ORANGE = "\033[38;48:5:208m"
-GREEN = "\033[38;2:0:255:0m"
-RED = "\033[38;2:255:0:0m"
-RESET = "\033[0m"
 
 COSTS = vars.COSTS
 MILITARY_COSTS = vars.MILITARY_COSTS
@@ -42,9 +49,21 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to sync commands: {e}")
 
+    async def check_latency():
+        while True:
+            latency = bot.latency * 1000
+            latency_check(latency, tag="LATENCY")
+            await asyncio.sleep(60)
+
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    bot.loop.create_task(check_latency())
+    
 @bot.tree.command(name="ping", description="Check the bot's latency.")
 async def ping(interaction: discord.Interaction):
     latency = bot.latency * 1000  # Convert from seconds to milliseconds
+    info(f"Ping command executed by {interaction.user} in {interaction.channel}", tag="PING")
+    latency_check(latency, tag="PING")
+
     await interaction.response.send_message(f"Pong! Latency: {latency:,.2f} ms")
 
 
@@ -71,7 +90,7 @@ class ActivityPaginator(discord.ui.View):
             title="**Audit Results**",
             description="Below is a grid view of alliance members Violating the audit ran.\nUse the buttons below to navigate through pages.",
             color=discord.Color.purple(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         page_results = self.pages[self.current_page].copy()
         # Ensure grid consistency: if odd number of items, add an empty field.
@@ -111,7 +130,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
     one_day_seconds = 86400  # 1 day in seconds
     type = type.lower()
 
-    print(f"Starting Audit For {len(members)} Members Of Alliance: https://politicsandwar.com/alliance/id={ALLIANCE_ID}")
+    info(f"Starting Audit For {len(members)} Members Of Alliance: https://politicsandwar.com/alliance/id={ALLIANCE_ID}")
 
     for member in members:
         if member.get("alliance_position", "") != "APPLICANT":
@@ -133,6 +152,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                         )
                         audit_results.append(result)
                 except ValueError:
+                    error(f"Error parsing last_active for {member['leader_name']}", tag="AUDIT")
                     audit_results.append(f"Error parsing last_active for {member['leader_name']}")
             elif type == "warchest":
                 if cities >= len(member.get("cities", [])):
@@ -187,6 +207,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                     result = header + f"**Warchest Deficits:**\n{deficits_str}"
                     audit_results.append(result)
             else:
+                warning(f"Invalid audit type: '{type}'.", tag="AUDIT")
                 await interaction.response.send_message("Invalid audit type. Use 'activity', 'warchest', or 'nsp'.")
                 return
 
@@ -230,6 +251,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
 
     
     except Exception as e:
+        error(f"Error while processing suggestion: {e}", tag="SUGGESTION")
         await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
@@ -268,6 +290,7 @@ async def report(interaction: discord.Interaction, report: str):
 
     
     except Exception as e:
+        error(f"Error while processing bug report: {e}", tag="BUG_REPORT")
         await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
@@ -326,7 +349,7 @@ async def legacy_warchest(interaction, nation_id: int):
     except Exception as e:
         # Optionally log the full traceback to your logs for debugging
         full_trace = traceback.format_exc()
-        print(f"{RED}[WARNING], {full_trace}{RESET}")
+        warning(e)
         
         # Build an error embed for Discord without sensitive details
         error_embed = discord.Embed(
@@ -350,7 +373,7 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
     try:
         nation_info = get_data.GET_NATION_DATA(nation_id, API_KEY)
 
-        print(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
+        info(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id}")
 
         result, excess = wc.calculate(nation_info, COSTS, MILITARY_COSTS)
         txt = ""
@@ -400,7 +423,7 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
     except Exception as e:
         # Optionally log the full traceback to your logs for debugging
         full_trace = traceback.format_exc()
-        print(f"{RED}[WARNING], {full_trace}{RESET}")
+        warning(e)
         
         # Build an error embed for Discord without sensitive details
         error_embed = discord.Embed(
