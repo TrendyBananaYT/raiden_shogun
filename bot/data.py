@@ -30,7 +30,7 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
         alliance_position
 
         bankrecs {{
-            
+            id
         }}
 
         alliance {{
