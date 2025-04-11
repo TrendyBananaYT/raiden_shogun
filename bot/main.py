@@ -206,6 +206,16 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                         
                     result = header + f"**Warchest Deficits:**\n{deficits_str}"
                     audit_results.append(result)
+            elif type == "spies":
+                if member.get("spies", 0) < 50:
+                    nation_url = f"https://politicsandwar.com/nation/id={member['id']}"
+                    result = (
+                        f"**Leader:** [{member['leader_name']}]({nation_url})\n"
+                        f"**Nation:** {member['nation_name']}\n"
+                        f"**Spies:** {member['spies']}\n"
+                        f"**Discord:** {member.get('discord', 'N/A')}"
+                    )
+                    audit_results.append(result)
             else:
                 warning(f"Invalid audit type: '{type}'.", tag="AUDIT")
                 await interaction.response.send_message("Invalid audit type. Use 'activity', 'warchest', or 'nsp'.")
