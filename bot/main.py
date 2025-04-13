@@ -18,6 +18,8 @@ import os
 import traceback
 import time
 import asyncio
+import json
+
 
 """
 Importing Custom Libraries
@@ -524,6 +526,130 @@ async def wars(interaction: discord.Interaction, nation_id: int):
     await interaction.response.send_message(embed=discord.Embed(description=output, color=discord.Color.purple()))
 
 
+
+@bot.tree.command(name="help", description="Get help with the bot commands.")
+async def help(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Help",
+        description="Here are the available commands:",
+        color=discord.Color.blue(),
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="/audit", value="Audit alliance members based on different criteria.", inline=False)
+    embed.add_field(name="/warchest", value="Calculate a nation's warchest requirements (5 days of upkeep).", inline=False)
+    embed.add_field(name="/bank", value="Check the bank balance of a nation.", inline=False)
+    embed.add_field(name="/wars", value="Check the active wars and military of a nation.", inline=False)
+    embed.add_field(name="/suggest", value="Suggest something to the bot.", inline=False)
+    embed.add_field(name="/report-a-bug", value="Report a bug to the bot.", inline=False)
     
+    await interaction.response.send_message(embed=embed)
+    info(f"Help command executed by {interaction.user} in {interaction.channel}", tag="HELP")
+
+
+@bot.tree.command(name="build", description="Find the best Build for a specific nation")
+@app_commands.describe(nation_id="Nation ID to check.", infrastructure="Optional: Target infrastructure level", barracks="Optional: Desired number of Barracks", factories="Optional: Desired number of Factories", hangars="Optional: Desired number of Hangars", drydocks="Optional: Desired number of Drydocks", land="Optional: Land value to use for city")
+async def build(
+    interaction: discord.Interaction,
+    nation_id: int,
+    infrastructure: int = -1,
+    barracks: int = -1,
+    factories: int = -1,
+    hangars: int = -1,
+    drydocks: int = -1,
+    land: int = -1
+):
+    info(f"Starting Build Calculation For: {nation_id} || By {interaction.user} In {interaction.channel}")
+    nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
+    nation_name = nation.get("nation_name", "N/A")
+    cities = nation.get("cities", [])
+
+    # Fallbacks
+    if cities:
+        city = cities[0]
+        if land == -1:
+            land = city.get("land", 100)
+        if infrastructure == -1:
+            infrastructure = city.get("infrastructure", 0)
+    else:
+        land = 100 if land == -1 else land
+        infrastructure = 0 if infrastructure == -1 else infrastructure
+
+    # Calculate improvements allowed
+    infra_needed = infrastructure
+    imp_total = infrastructure // 50
+
+    # Normalize inputs
+    def safe(val):
+        return val if val >= 0 else 0
+
+    imp_barracks = safe(barracks)
+    imp_factory = safe(factories)
+    imp_hangars = safe(hangars)
+    imp_drydock = safe(drydocks)
+
+    # Calculate military total and adjust if needed
+    military_total = imp_barracks + imp_factory + imp_hangars + imp_drydock
+    if military_total > imp_total and military_total > 0:
+        scale = imp_total / military_total
+        imp_barracks = int(imp_barracks * scale)
+        imp_factory = int(imp_factory * scale)
+        imp_hangars = int(imp_hangars * scale)
+        imp_drydock = int(imp_drydock * scale)
+
+    # Safety improvements (remove pollution, crime, disease)
+    imp_policestation = 1
+    imp_hospital = 1
+    imp_recyclingcenter = 1
+
+    used_imps = (
+        imp_barracks + imp_factory + imp_hangars + imp_drydock +
+        imp_policestation + imp_hospital + imp_recyclingcenter
+    )
+
+    remaining_imps = imp_total - used_imps
+    imp_factory += remaining_imps if remaining_imps > 0 else 0
+
+    build_json = {
+        "infra_needed": infra_needed,
+        "imp_total": imp_total,
+        "imp_coalpower": 0,
+        "imp_oilpower": 0,
+        "imp_windpower": 0,
+        "imp_nuclearpower": 0,
+        "imp_coalmine": 0,
+        "imp_oilwell": 0,
+        "imp_uramine": 0,
+        "imp_leadmine": 0,
+        "imp_ironmine": 0,
+        "imp_bauxitemine": 0,
+        "imp_farm": 0,
+        "imp_gasrefinery": 0,
+        "imp_aluminumrefinery": 0,
+        "imp_munitionsfactory": 0,
+        "imp_steelmill": 0,
+        "imp_policestation": imp_policestation,
+        "imp_hospital": imp_hospital,
+        "imp_recyclingcenter": imp_recyclingcenter,
+        "imp_subway": 0,
+        "imp_supermarket": 0,
+        "imp_bank": 0,
+        "imp_mall": 0,
+        "imp_stadium": 0,
+        "imp_barracks": imp_barracks,
+        "imp_factory": imp_factory,
+        "imp_hangars": imp_hangars,
+        "imp_drydock": imp_drydock,
+        "age": 0,
+        "land": land
+    }
+
+    json_output = json.dumps(build_json, indent=2)
+    await interaction.response.send_message(
+        f"**Build for Nation:** `{nation_name}` *(ID: {nation_id})*\n```json\n{json_output}\n```"
+    )
+
+
+
 
 bot.run(BOT_TOKEN)
+
