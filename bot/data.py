@@ -117,7 +117,7 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         aluminum
         food
         credits
-
+        continent
         
 
         alliance {{
@@ -202,6 +202,7 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         cities {{
           date
           infrastructure
+          land
           coal_power
           oil_power
           nuclear_power
@@ -251,3 +252,40 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         return
     
     return nation_info
+
+def GET_GAME_DATA(API_KEY: str):
+    query = f"""
+    {{
+    game_info {{
+            game_date
+        
+        radiation {{
+            global
+            north_america
+            south_america
+            europe
+            africa
+            asia
+            australia
+            antarctica
+        }}
+    }}
+    }}
+    """
+    url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"API request failed: {e}")
+        return
+    
+    try:
+        game_info = response.json()
+        game_data = game_info.get("data", {}).get("game_info", {})
+    except Exception as e:
+        print(f"Error parsing API response: {e}")
+        return
+    
+    return game_data
