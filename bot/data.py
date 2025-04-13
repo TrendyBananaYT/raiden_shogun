@@ -118,6 +118,8 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         food
         credits
 
+        
+
         alliance {{
             id
             name
