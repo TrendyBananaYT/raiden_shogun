@@ -119,6 +119,45 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         credits
         continent
         
+        iron_works
+        bauxite_works
+        arms_stockpile
+        emergency_gasoline_reserve
+        mass_irrigation
+        international_trade_center
+        missile_launch_pad
+        nuclear_research_facility
+        iron_dome
+        vital_defense_system
+        central_intelligence_agency
+        center_for_civil_engineering
+        propaganda_bureau
+        uranium_enrichment_program
+        urban_planning
+        advanced_urban_planning
+        space_program
+        spy_satellite
+        moon_landing
+        pirate_economy
+        recycling_initiative
+        telecommunications_satellite
+        green_technologies
+        arable_land_agency
+        clinical_research_center
+        specialized_police_training_program
+        advanced_engineering_corps
+        government_support_agency
+        research_and_development_center
+        metropolitan_planning
+        military_salvage
+        fallout_shelter
+        activity_center
+        bureau_of_domestic_affairs
+        advanced_pirate_economy
+        mars_landing
+        surveillance_network
+        guiding_satellite
+        nuclear_launch_facility
 
         alliance {{
             id

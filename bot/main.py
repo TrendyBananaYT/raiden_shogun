@@ -547,6 +547,14 @@ async def help(interaction: discord.Interaction):
 
 
 
+from datetime import datetime
+import math
+
+def override(user_val, computed, max_allowed):
+    """Return user_val (clamped to max_allowed) if provided (>= 0); otherwise return computed."""
+    if user_val >= 0:
+        return min(user_val, max_allowed)
+    return computed
 
 @bot.tree.command(name="build", description="Find the best Build for a specific nation")
 @app_commands.describe(
@@ -578,7 +586,7 @@ async def help(interaction: discord.Interaction):
     imp_munitionsfactory="Optional: Desired number of Munitions Factories (max 5)",
     imp_policestation="Optional: Desired number of Police Stations (max 5)",
     imp_hospital="Optional: Desired number of Hospitals (max 5)",
-    imp_recyclingcenter="Optional: Desired number of Recycling Centers (max 3)",
+    imp_recyclingcenter="Optional: Desired number of Recycling Centers (max 3 or 4 if recycling_initiative active)",
     imp_subway="Optional: Desired number of Subways (max 1)"
 )
 async def build(
@@ -614,22 +622,16 @@ async def build(
     imp_recyclingcenter: int = -1,
     imp_subway: int = -1
 ):
-    def override(user_val, computed, max_allowed):
-        """If user_val is provided (>=0), return its clamped value; otherwise return computed."""
-        if user_val >= 0:
-            return min(user_val, max_allowed)
-        return computed
-
     info(f"Starting Build Calculation For: {nation_id} || By {interaction.user} In {interaction.channel}")
     
-    # ---------------- Stage 0: Fetch Nation Data & Determine Continent ----------------
+    # ---------------- Stage 0: Nation Data & Effective Infrastructure ----------------
     nation = get_data.GET_NATION_DATA(nation_id, API_KEY)
     nation_name = nation.get("nation_name", "N/A")
-    # Preserve abbreviated continent codes (e.g., "af", "na", etc.)
+    # Preserve abbreviated continent (e.g., "af", "na", etc.)
     continent = nation.get("continent", "N/A").lower()
     cities = nation.get("cities", [])
     
-    # Allowed raw production improvements per your table:
+    # Allowed raw resource improvements according to your table:
     # Africa: oil, bauxite, uranium
     # Antarctica: oil, coal, uranium
     # Asia: oil, iron, uranium
@@ -678,8 +680,13 @@ async def build(
         land = 100 if land == -1 else land
         infrastructure = 0 if infrastructure == -1 else infrastructure
 
-    # Total improvement slots available: 1 slot per 50 infra.
-    imp_total = infrastructure // 50
+    # Boost effective infrastructure if national projects reduce costs.
+    effective_infra = infrastructure
+    if nation.get("advanced_engineering_corps", False) and nation.get("center_for_civil_engineering", False):
+        effective_infra = infrastructure * 1.05
+
+    # Total improvement slots available (1 per 50 effective infra)
+    imp_total = int(effective_infra) // 50
 
     # ---------------- Stage 1: MMR (Military) Improvements ----------------
     if barracks < 0 or factories < 0 or hangars < 0 or drydocks < 0:
@@ -715,9 +722,13 @@ async def build(
     nuclear_count = rem_infra // 2000
     rem_infra -= nuclear_count * 2000
     wind_count = math.ceil(rem_infra / 250) if rem_infra > 0 else 0
-    # NEW: If computed wind_count > 1 and no user override for nuclear is provided, use 1 nuclear instead.
-    if imp_nuclearpower < 0 and nuclear_count == 0 and wind_count > 1:
-        nuclear_count = 1
+    # Compare two strategies:
+    # Strategy A uses computed nuclear_count + wind_count.
+    # Strategy B uses (nuclear_count + 1) and 0 wind, if that uses fewer improvement slots.
+    stratA = nuclear_count + wind_count
+    stratB = nuclear_count + 1
+    if imp_nuclearpower < 0 and imp_windpower < 0 and stratB < stratA:
+        nuclear_count = nuclear_count + 1
         wind_count = 0
     computed_power = {
         "imp_nuclearpower": nuclear_count,
@@ -732,18 +743,19 @@ async def build(
     power_total = sum(computed_power.values())
 
     # ---------------- Stage 3: Safety & Commerce Improvements ----------------
+    # Safety improvements are forced to maximum to eliminate pollution, crime, and disease.
     computed_safety = {
-        "imp_policestation": 1,
-        "imp_hospital": 1,
-        "imp_recyclingcenter": 1,
+        "imp_policestation": 5,
+        "imp_hospital": 5,
+        "imp_recyclingcenter": 4 if nation.get("recycling_initiative", False) else 3,
         "imp_subway": 1
     }
     computed_safety["imp_policestation"] = override(imp_policestation, computed_safety["imp_policestation"], 5)
     computed_safety["imp_hospital"] = override(imp_hospital, computed_safety["imp_hospital"], 5)
-    computed_safety["imp_recyclingcenter"] = override(imp_recyclingcenter, computed_safety["imp_recyclingcenter"], 3)
+    computed_safety["imp_recyclingcenter"] = override(imp_recyclingcenter, computed_safety["imp_recyclingcenter"], (4 if nation.get("recycling_initiative", False) else 3))
     computed_safety["imp_subway"] = override(imp_subway, computed_safety["imp_subway"], 1)
     safety_total = sum(computed_safety.values())
-
+    
     computed_commerce = {
         "imp_stadium": 3,
         "imp_mall": 4,
@@ -755,11 +767,10 @@ async def build(
     computed_commerce["imp_bank"] = override(imp_bank, computed_commerce["imp_bank"], 5)
     computed_commerce["imp_supermarket"] = override(imp_supermarket, computed_commerce["imp_supermarket"], 4)
     commerce_total = sum(computed_commerce.values())
-
+    
     used_so_far = mmr_total + power_total + safety_total + commerce_total
     remaining_slots = imp_total - used_so_far
     if remaining_slots < 0:
-        # Scale down commerce first, then MMR if needed.
         if commerce_total > 0:
             scale = (commerce_total + remaining_slots) / commerce_total
             for k in computed_commerce:
@@ -775,8 +786,7 @@ async def build(
             used_so_far = mmr_total + power_total + safety_total + commerce_total
             remaining_slots = imp_total - used_so_far
 
-    # ---------------- Split Remaining Slots Between Raw Resources and Manufacturing ----------------
-    # New heuristic: self-sustainability first.
+    # ---------------- Stage 4: Split Remaining Slots ----------------
     if remaining_slots >= 10:
         RS_manufacturing = remaining_slots // 2
         RS_raw = remaining_slots - RS_manufacturing
@@ -784,7 +794,7 @@ async def build(
         RS_manufacturing = 0
         RS_raw = remaining_slots
 
-    # ---------------- Stage 4: Raw Resource Improvements ----------------
+    # ---------------- Stage 5: Raw Resource Improvements ----------------
     RS = RS_raw
     computed_raw = {}
     # Priority order: Uranium Mine, Oil Well, Coal Mine, Iron Mine, Bauxite Mine, Lead Mine, Farm.
@@ -822,26 +832,34 @@ async def build(
     RS -= computed_raw["imp_farm"]
     raw_total = sum(computed_raw.values())
 
-    # ---------------- Stage 5: Manufacturing Improvements ----------------
+    # ---------------- Stage 6: Manufacturing Improvements ----------------
     RS = RS_manufacturing
     computed_manu = {}
+    # For Oil Refinery: require Oil Well. Additionally, cap the number built to the number of Oil Wells computed.
     if computed_raw["imp_oilwell"] > 0 and RS > 0:
-        computed_manu["imp_gasrefinery"] = override(imp_gasrefinery, min(5, RS), 5)
+        max_possible = min(5, computed_raw["imp_oilwell"])
+        computed_manu["imp_gasrefinery"] = override(imp_gasrefinery, min(max_possible, RS), 5)
         RS -= computed_manu["imp_gasrefinery"]
     else:
         computed_manu["imp_gasrefinery"] = override(imp_gasrefinery, 0, 5)
+    # For Steel Mill: requires both Coal Mine and Iron Mine; cap by the lower of the two.
     if computed_raw["imp_coalmine"] > 0 and computed_raw["imp_ironmine"] > 0 and RS > 0:
-        computed_manu["imp_steelmill"] = override(imp_steelmill, min(5, RS), 5)
+        max_possible = min(5, computed_raw["imp_coalmine"], computed_raw["imp_ironmine"])
+        computed_manu["imp_steelmill"] = override(imp_steelmill, min(max_possible, RS), 5)
         RS -= computed_manu["imp_steelmill"]
     else:
         computed_manu["imp_steelmill"] = override(imp_steelmill, 0, 5)
+    # For Aluminum Refinery: requires Bauxite Mine; cap by that number.
     if computed_raw["imp_bauxitemine"] > 0 and RS > 0:
-        computed_manu["imp_aluminumrefinery"] = override(imp_aluminumrefinery, min(5, RS), 5)
+        max_possible = min(5, computed_raw["imp_bauxitemine"])
+        computed_manu["imp_aluminumrefinery"] = override(imp_aluminumrefinery, min(max_possible, RS), 5)
         RS -= computed_manu["imp_aluminumrefinery"]
     else:
         computed_manu["imp_aluminumrefinery"] = override(imp_aluminumrefinery, 0, 5)
+    # For Munitions Factory: requires Lead Mine; cap by that number.
     if computed_raw["imp_leadmine"] > 0 and RS > 0:
-        computed_manu["imp_munitionsfactory"] = override(imp_munitionsfactory, min(5, RS), 5)
+        max_possible = min(5, computed_raw["imp_leadmine"])
+        computed_manu["imp_munitionsfactory"] = override(imp_munitionsfactory, min(max_possible, RS), 5)
         RS -= computed_manu["imp_munitionsfactory"]
     else:
         computed_manu["imp_munitionsfactory"] = override(imp_munitionsfactory, 0, 5)
