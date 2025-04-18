@@ -125,6 +125,8 @@ class ActivityPaginator(discord.ui.View):
 @bot.tree.command(name="audit", description="Audit alliance members based on different criteria.")
 @app_commands.describe(type="Type of audit to perform: activity, warchest, nsp")
 async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
+    await interaction.response.defer()
+
     members = get_data.GET_ALLIANCE_MEMBERS(ALLIANCE_ID, API_KEY)
 
     audit_results = []
@@ -218,6 +220,24 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                         f"**Discord:** {member.get('discord', 'N/A')}"
                     )
                     audit_results.append(result)
+            elif type == "project":
+                member = get_data.GET_NATION_DATA(member.get("id", 0), API_KEY)
+                if member.get("propaganda_bureau", False) == False or member.get("central_intelligence_agency", False) == False:
+                    nation_url = f"https://politicsandwar.com/nation/id={member['id']}"
+                    result = (
+                        f"**Leader:** [{member['leader_name']} - {member['nation_name']}]({nation_url})\n"
+                        f"**Discord:** {member.get('discord', 'N/A')}"
+                        f"**Missing Projects:**\n"
+                        f"**Propaganda Bureau:** {member.get('propaganda_bureau', False)}\n"
+                        f"**Central Intelligence Agency:** {member.get('central_intelligence_agency', False)}\n"
+                    )
+                    
+                    audit_results.append(result)
+
+                if member.get("activity_center", False) == False and len(member.get("cities", {})) < 15:
+                    result = result + f"**Activity Center:** {member.get('activity_center', False)}\n"
+
+                    audit_results.append(result)
             else:
                 warning(f"Invalid audit type: '{type}'.", tag="AUDIT")
                 await interaction.response.send_message("Invalid audit type. Use 'activity', 'warchest', or 'nsp'.")
@@ -225,7 +245,8 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
 
     # Use your existing paginator to paginate the audit_results.
     paginator = ActivityPaginator(audit_results)
-    await interaction.response.send_message(embed=paginator.get_embed(), view=paginator)
+    await interaction.followup.send(embed=paginator.get_embed(), view=paginator)
+
 
 
 
@@ -896,7 +917,6 @@ async def build(
         "imp_factory": stage_mmr["imp_factory"],
         "imp_hangars": stage_mmr["imp_hangars"],
         "imp_drydock": stage_mmr["imp_drydock"],
-        "land": land
     }
 
     import json
