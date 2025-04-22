@@ -119,6 +119,7 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         credits
         continent
         discord
+        spies_today
         
         iron_works
         bauxite_works
