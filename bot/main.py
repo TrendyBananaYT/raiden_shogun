@@ -136,9 +136,15 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
 
     info(f"Starting Audit For {len(members)} Members Of Alliance: https://politicsandwar.com/alliance/id={ALLIANCE_ID}")
 
+    need_login   = []
+    needers = []
+    summary = []
+
     for member in members:
         if member.get("alliance_position", "") != "APPLICANT":
             if type == "activity":
+                summary = "### The Following People Need To Log In"
+
                 last_active_str = member.get("last_active", "1970-01-01T00:00:00+00:00")
                 try:
                     last_active_dt = datetime.fromisoformat(last_active_str.replace("Z", "+00:00"))
@@ -155,10 +161,13 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                             f"**Discord:** {discord_username}"
                         )
                         audit_results.append(result)
+                        needers.append(f"@{member.get('discord','N/A')}")
                 except ValueError:
                     error(f"Error parsing last_active for {member['leader_name']}", tag="AUDIT")
                     audit_results.append(f"Error parsing last_active for {member['leader_name']}")
             elif type == "warchest":
+                summary = "### The Following People Need To Fix Their Warchests"
+
                 if cities >= len(member.get("cities", [])):
                     wc_result, _ = calculate.warchest(member, COSTS, MILITARY_COSTS)
                     if wc_result is None:
@@ -210,7 +219,10 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                         
                     result = header + f"**Warchest Deficits:**\n{deficits_str}"
                     audit_results.append(result)
+                    needers.append(f"@{member.get('discord','N/A')}")
             elif type == "spies":
+                summary = "### The Following People Need To Buy Spies"
+
                 max_spies = 2
                 match member.get("central_intelligence_agency", False):
                     case True:
@@ -227,6 +239,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                         f"**Discord:** {member.get('discord', 'N/A')}"
                     )
                     audit_results.append(result)
+                    needers.append(f"@{member.get('discord','N/A')}")
             elif type == "project":
                 member = get_data.GET_NATION_DATA(member.get("id", 0), API_KEY)
                 if member.get("propaganda_bureau", False) == False or member.get("central_intelligence_agency", False) == False:
@@ -240,11 +253,13 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                     )
                     
                     audit_results.append(result)
+                    needers.append(f"@{member.get('discord','N/A')}")
 
                 if member.get("activity_center", False) == False and len(member.get("cities", {})) < 15:
                     result = result + f"**Activity Center:** {member.get('activity_center', False)}\n"
 
                     audit_results.append(result)
+                    needers.append(f"@{member.get('discord','N/A')}")
             else:
                 warning(f"Invalid audit type: '{type}'.", tag="AUDIT")
                 await interaction.response.send_message("Invalid audit type. Use 'activity', 'warchest', or 'nsp'.")
@@ -253,6 +268,8 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
     # Use your existing paginator to paginate the audit_results.
     paginator = ActivityPaginator(audit_results)
     await interaction.followup.send(embed=paginator.get_embed(), view=paginator)
+
+    await interaction.followup.send(f"```{summary}\n" + f"{needers or ["No Violators!"]}```".replace("'", "").replace("[", "").replace("]", "").replace(",", ""))
 
 
 
