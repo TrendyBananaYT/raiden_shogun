@@ -43,6 +43,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+async def check_latency():
+        while True:
+            latency = bot.latency * 1000
+            latency_check(latency, tag="LATENCY")
+            await asyncio.sleep(60)
+
 @bot.event
 async def on_ready():
     try:
@@ -50,15 +56,14 @@ async def on_ready():
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
         print(f"Failed to sync commands: {e}")
-
-    async def check_latency():
-        while True:
-            latency = bot.latency * 1000
-            latency_check(latency, tag="LATENCY")
-            await asyncio.sleep(60)
-
+    
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    bot.loop.create_task(check_latency())
+
+    if not hasattr(bot, 'latency_task'):
+        bot.latency_task = bot.loop.create_task(check_latency())
+
+    
+
     
 @bot.tree.command(name="ping", description="Check the bot's latency.")
 async def ping(interaction: discord.Interaction):
