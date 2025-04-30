@@ -1,5 +1,8 @@
 import datetime
 import sys
+import os
+import time
+import logging
 
 class LogColors:
     RESET = '\033[0m'
@@ -47,8 +50,11 @@ def latency_check(latency_ms: float, tag=None):
     msg = f"Latency: {latency_ms:,.2f} ms"
 
     if latency_ms < 100:
-        success(msg, tag)
+        debug(msg, tag)
     elif latency_ms < 300:
         warning(msg, tag)
     else:
-        error(msg, tag)
+        fatal(f"{msg} — Latency is too high. Restarting `main.py`...", tag)
+        time.sleep(0.5)  # Let logs flush
+        logging.shutdown()
+        sys.exit(1)

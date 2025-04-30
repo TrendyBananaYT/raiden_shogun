@@ -194,6 +194,23 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
                 "food": (required_food, current_food),
             }.items()
         }
+
+        supply = {
+            "money": required_money,
+            "coal": required_coal,
+            "oil": required_oil,
+            "uranium": required_uranium,
+            "iron": required_iron,
+            "bauxite": required_bauxite,
+            "lead": required_lead,
+            "gasoline": required_gasoline,
+            "munitions": required_munitions,
+            "steel": required_steel,
+            "aluminum": required_aluminum,
+            "food": required_food,
+            "credits": required_credits,
+        }
+
     except Exception as e:
         error(f"Error in warchest calculation: {e}")
         return {
@@ -212,7 +229,7 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
             "credits_deficit": 0
         }, {}
 
-    return result, excess
+    return result, excess, supply
 
 def balance(nation_info):
     money = 0

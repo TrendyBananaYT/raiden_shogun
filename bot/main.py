@@ -47,6 +47,11 @@ async def check_latency():
         while True:
             latency = bot.latency * 1000
             latency_check(latency, tag="LATENCY")
+
+            await bot.change_presence(
+                activity=discord.Game(name=f"Latency: {latency:,.2f}ms")
+            )
+
             await asyncio.sleep(60)
 
 @bot.event
@@ -174,7 +179,7 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
                 summary = "### The Following People Need To Fix Their Warchests"
 
                 if cities >= len(member.get("cities", [])):
-                    wc_result, _ = calculate.warchest(member, COSTS, MILITARY_COSTS)
+                    wc_result, _, wc_supply = calculate.warchest(member, COSTS, MILITARY_COSTS)
                     if wc_result is None:
                         audit_results.append(f"Error calculating warchest for {member['leader_name']}")
                         continue
@@ -189,42 +194,43 @@ async def audit(interaction: discord.Interaction, type: str, cities: int = 100):
 
                     # Build a list of deficits, compact and separated by a vertical bar.
                     deficits = []
-                    if wc_result['money_deficit'] > 0:
+                    if wc_result['money_deficit'] > 0.25 * wc_supply['money']:
                         deficits.append(f"<:money:1357103044466184412> {wc_result['money_deficit']:,.2f}\n")
-                    if wc_result['coal_deficit'] > 0:
+                    if wc_result['coal_deficit'] > 0.25 * wc_supply['coal']:
                         deficits.append(f"<:coal:1357102730682040410> {wc_result['coal_deficit']:,.2f}\n")
-                    if wc_result['oil_deficit'] > 0:
+                    if wc_result['oil_deficit'] > 0.25 * wc_supply['oil']:
                         deficits.append(f"<:Oil:1357102740391854140> {wc_result['oil_deficit']:,.2f}\n")
-                    if wc_result['uranium_deficit'] > 0:
+                    if wc_result['uranium_deficit'] > 0.25 * wc_supply['uranium']:
                         deficits.append(f"<:uranium:1357102742799126558> {wc_result['uranium_deficit']:,.2f}\n")
-                    if wc_result['iron_deficit'] > 0:
+                    if wc_result['iron_deficit'] > 0.25 * wc_supply['iron']:
                         deficits.append(f"<:iron:1357102735488581643> {wc_result['iron_deficit']:,.2f}\n")
-                    if wc_result['bauxite_deficit'] > 0:
+                    if wc_result['bauxite_deficit'] > 0.25 * wc_supply['bauxite']:
                         deficits.append(f"<:bauxite:1357102729411039254> {wc_result['bauxite_deficit']:,.2f}\n")
-                    if wc_result['lead_deficit'] > 0:
+                    if wc_result['lead_deficit'] > 0.25 * wc_supply['lead']:
                         deficits.append(f"<:lead:1357102736646209536> {wc_result['lead_deficit']:,.2f}\n")
-                    if wc_result['gasoline_deficit'] > 0:
+                    if wc_result['gasoline_deficit'] > 0.25 * wc_supply['gasoline']:
                         deficits.append(f"<:gasoline:1357102734645399602> {wc_result['gasoline_deficit']:,.2f}\n")
-                    if wc_result['munitions_deficit'] > 0:
+                    if wc_result['munitions_deficit'] > 0.25 * wc_supply['munitions']:
                         deficits.append(f"<:munitions:1357102777389814012> {wc_result['munitions_deficit']:,.2f}\n")
-                    if wc_result['steel_deficit'] > 0:
+                    if wc_result['steel_deficit'] > 0.25 * wc_supply['steel']:
                         deficits.append(f"<:steel:1357105344052072618> {wc_result['steel_deficit']:,.2f}\n")
-                    if wc_result['aluminum_deficit'] > 0:
+                    if wc_result['aluminum_deficit'] > 0.25 * wc_supply['aluminum']:
                         deficits.append(f"<:aluminum:1357102728391819356> {wc_result['aluminum_deficit']:,.2f}\n")
-                    if wc_result['food_deficit'] > 0:
+                    if wc_result['food_deficit'] > 0.25 * wc_supply['food']:
                         deficits.append(f"<:food:1357102733571784735> {wc_result['food_deficit']:,.2f}\n")
-                    if wc_result['credits_deficit'] > 0:
-                        deficits.append(f"<:credits:1357102732187537459> {wc_result['credits_deficit']:,.2f}")
+                    if wc_result['credits_deficit'] > 10:
+                         deficits.append(f"<:credits:1357102732187537459> {wc_result['credits_deficit']:,.2f}")
                     
                     if deficits:
                         # Join deficits using a separator for compactness.
                         deficits_str = "".join(deficits)
+                        needers.append(f"@{member.get('discord','N/A')}")
                     else:
                         deficits_str = "**All Good!** No deficits found."
                         
                     result = header + f"**Warchest Deficits:**\n{deficits_str}"
                     audit_results.append(result)
-                    needers.append(f"@{member.get('discord','N/A')}")
+                    
             elif type == "spies":
                 summary = "### The Following People Need To Buy Spies"
 
@@ -364,7 +370,7 @@ async def warchest(interaction: discord.Interaction, nation_id: int):
 
         info(f"Starting Warchest Calculation For: {nation_info.get('nation_name', 'N/A')} || https://politicsandwar.com/nation/id={nation_id} || By {interaction.user} In {interaction.channel}")
 
-        result, excess = calculate.warchest(nation_info, COSTS, MILITARY_COSTS)
+        result, excess, _ = calculate.warchest(nation_info, COSTS, MILITARY_COSTS)
         txt = ""
         if result is None:
             error(f"Error calculating warchest for nation ID {nation_id}", tag="WARCH")
@@ -595,10 +601,6 @@ async def help(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
     info(f"Help command executed by {interaction.user} in {interaction.channel}", tag="HELP")
 
-
-
-from datetime import datetime
-import math
 
 def override(user_val, computed, max_allowed):
     """Return user_val (clamped to max_allowed) if provided (>= 0); otherwise return computed."""
