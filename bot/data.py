@@ -30,8 +30,10 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
         alliance_position
         spies
 
-        bankrecs {{
-            id
+        military_research {{
+            ground_capacity
+            air_capacity
+            naval_capacity
         }}
 
         alliance {{
@@ -97,6 +99,7 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
       nations(id:{nation_id}) {{ data {{
         id
         score
+        color
         population
         nation_name
         leader_name
@@ -293,6 +296,84 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
         return
     
     return nation_info
+
+
+def GET_PURPLE_NATIONS(API_KEY: str):
+    all_nations = []
+    per_page = 100
+    page = 1
+
+    while True:
+        query = f"""{{
+        nations(first:{per_page}, page:{page}, vmode: false, color:"purple") {{
+            paginatorInfo {{
+                currentPage
+                lastPage
+            }}
+            data {{
+                id
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                money
+                oil
+                uranium
+                iron
+                bauxite
+                lead
+                coal
+                gasoline
+                munitions
+                steel
+                aluminum
+                food
+                credits
+                population
+                defensive_wars_count
+                last_active
+
+                alliance {{
+                    id
+                    name
+                }}
+
+                cities {{
+                    date
+                }}
+            }}
+        }}
+        }}"""
+
+        url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
+        
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            print(f"API request failed on page {page}: {e}")
+            return
+
+        try:
+            data = response.json()
+            nations_block = data.get("data", {}).get("nations", {})
+            if not nations_block:
+                print(f"No nation data found on page {page}.")
+                return
+            all_nations.extend(nations_block.get("data", []))
+            if page >= nations_block.get("paginatorInfo", {}).get("lastPage", 1):
+                break
+            page += 1
+        except (ValueError, KeyError, TypeError) as e:
+            print(f"Error parsing API response on page {page}: {e}")
+            return
+
+    return all_nations
+
+
+
 
 def GET_GAME_DATA(API_KEY: str):
     query = f"""
