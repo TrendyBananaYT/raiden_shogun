@@ -26,6 +26,23 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
         steel_preparedness = 0
         aluminum_preparedness = 0
 
+        # Calculate military resource requirements for 5 days (60 turns)
+        soldiers = nation_info.get("soldiers", 0)
+        tanks = nation_info.get("tanks", 0)
+        aircraft = nation_info.get("aircraft", 0)
+        ships = nation_info.get("ships", 0)
+
+        # Calculate military resource usage per turn
+        gasoline_per_turn = (soldiers / 5000) + (tanks / 100) + (aircraft / 4) + 2.5  # Base gasoline usage
+        munitions_per_turn = (soldiers / 5000) + (tanks / 100) + (aircraft / 4) + 2    # Base munitions usage
+        steel_per_turn = (tanks / 100) + (ships / 5)                                   # Base steel usage
+        aluminum_per_turn = aircraft / 4                                               # Base aluminum usage
+
+        # Calculate total military resource requirements for 5 days
+        required_gasoline = gasoline_per_turn * 60  # 60 turns = 5 days
+        required_munitions = munitions_per_turn * 60
+        required_steel = steel_per_turn * 60
+        required_aluminum = aluminum_per_turn * 60
 
         for city in nation_info.get("cities", []):
             infra = city.get("infrastructure", 0)
@@ -69,6 +86,7 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
 
             # Steel mills: consume 0.25 ton iron and 0.25 ton coal per turn each.
             total_steel_mill_iron += city.get("steel_mill", 0) * 0.75
+            total_steel_mill_coal += city.get("steel_mill", 0) * 0.75
 
             # Aluminum refineries: consume 0.25 ton bauxite per turn.
             total_aluminum_refinery_bauxite += city.get("aluminum_refinery", 0) * 0.75
@@ -79,7 +97,6 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
             # Food Consumption: 1 Per Base-Person Per Turn and 1 Per 750 Soldiers
             base_population = int(city.get("infrastructure", 0) * 100)
             date_format = "%Y-%m-%d"
-
             
             date1 = datetime.now(timezone.utc)
             date2 = datetime.strptime(city.get("date", "2025-01-01"), date_format).replace(tzinfo=timezone.utc)
@@ -91,23 +108,17 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
             population = ((base_population ^ 2) / 125_000_000) + ((base_population * city_age_modifier - base_population) / 850)
             total_food_consumption += population * 1 + (nation_info.get("soldiers", 0) / 750)
 
-
             MMR_WEIGHT = 0.5
             aluminum_preparedness += (city.get("hangar", 0) * 3 * 5) * MMR_WEIGHT
             steel_preparedness += ((city.get("factory", 0) * 50 * 0.5) + (city.get("drydock", 0) * 30)) * MMR_WEIGHT
 
         # Military upkeep per turn (wartime rates).
-        soldiers = nation_info.get("soldiers", 0)
-        tanks = nation_info.get("tanks", 0)
-        aircraft = nation_info.get("aircraft", 0)
-        ships = nation_info.get("ships", 0)
         soldier_upkeep = soldiers * MILITARY_COSTS["soldiers"]
         tank_upkeep = tanks * MILITARY_COSTS["tanks"]
         aircraft_upkeep = aircraft * MILITARY_COSTS["aircraft"]
         ship_upkeep = ships * MILITARY_COSTS["ships"]
         total_military_upkeep = soldier_upkeep + tank_upkeep + aircraft_upkeep + ship_upkeep
 
-        # print(f"Soldiers: {soldiers}, Tanks: {tanks}, Aircraft: {aircraft}, Ships: {ships}")
         total_upkeep_turn = total_building_upkeep + total_military_upkeep
 
         # Calculate required money for 5 days (60 turns).
@@ -122,16 +133,8 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
         required_iron = total_steel_mill_iron * 60
         required_bauxite = total_aluminum_refinery_bauxite * 60
         required_lead = total_munitions_factory_lead * 60
-
-
-        required_gasoline = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2.5) * 10
-        required_munitions = ((soldiers / 5_000) + (tanks / 100) + (aircraft / 4) + 2) * 10
-        required_steel = steel_preparedness * 5
-        required_aluminum = aluminum_preparedness * 5
-
-
-        required_food = total_food_consumption * 6
-        required_credits = 1 - nation_info.get("credits", 0) 
+        required_food = total_food_consumption * 60
+        required_credits = 1 - nation_info.get("credits", 0)
 
         # Get current resource amounts.
         current_coal = nation_info.get("coal", 0)
@@ -213,21 +216,7 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
 
     except Exception as e:
         error(f"Error in warchest calculation: {e}")
-        return {
-            "money_deficit": 0,
-            "coal_deficit": 0,
-            "oil_deficit": 0,
-            "uranium_deficit": 0,
-            "iron_deficit": 0,
-            "bauxite_deficit": 0,
-            "lead_deficit": 0,
-            "gasoline_deficit": 0,
-            "munitions_deficit": 0,
-            "steel_deficit": 0,
-            "aluminum_deficit": 0,
-            "food_deficit": 0,
-            "credits_deficit": 0
-        }, {}
+        return None, {}, {}
 
     return result, excess, supply
 

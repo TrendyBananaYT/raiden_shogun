@@ -1,4 +1,9 @@
 import requests
+import json
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
+import pytz
+from bot.handler import error
 
 def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
     query = f"""{{
@@ -93,187 +98,187 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
     return members
 
 
-def GET_NATION_DATA(nation_id: int, API_KEY: str):
+def GET_NATION_DATA(nation_id: int, api_key: str) -> Optional[Dict]:
+    """Get nation data from the API."""
+    query = """
+    {
+        nations(id:%d) { data {
+            last_active
+            flag
+            id
+            score
+            color
+            population
+            nation_name
+            leader_name
+            soldiers
+            tanks
+            aircraft
+            ships
+            money
+            coal
+            oil
+            uranium
+            iron
+            bauxite
+            lead
+            gasoline
+            munitions
+            steel
+            aluminum
+            food
+            credits
+            continent
+            discord
+            spies_today
+            
+            alliance {
+                id
+                name
+            }
+            
+            wars {
+                id
+                attacker {
+                    id
+                    nation_name
+                    leader_name
+                    soldiers
+                    tanks
+                    aircraft
+                    ships
+                    alliance {
+                        id
+                        name
+                    }
+                }
+                defender {
+                    id
+                    nation_name
+                    leader_name
+                    soldiers
+                    tanks
+                    aircraft
+                    ships
+                    alliance {
+                        id
+                        name
+                    }
+                }
+                war_type
+                turns_left
+                att_points
+                def_points
+                att_peace
+                def_peace
+                att_resistance
+                def_resistance
+                att_fortify
+                def_fortify
+                ground_control
+                air_superiority
+                naval_blockade
+            }
+        }}
+    }
+    """ % nation_id
+    
+    try:
+        response = requests.get(
+            "https://api.politicsandwar.com/graphql",
+            params={"api_key": api_key, "query": query}
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "errors" in data:
+            print(f"API Error: {data['errors']}")
+            return None
+            
+        nations = data.get("data", {}).get("nations", {}).get("data", [])
+        return nations[0] if nations else None
+        
+    except Exception as e:
+        print(f"Error fetching nation data: {e}")
+        return None
+
+
+def GET_CITY_DATA(nation_id: int, api_key: str) -> Optional[List[Dict]]:
+    """Get city data for a nation from the API."""
+    query = """
+    {
+        nations(id:%d) { data {
+            cities {
+                name
+                id
+                date
+                infrastructure
+                land
+                coal_power
+                oil_power
+                nuclear_power
+                wind_power
+                farm
+                uranium_mine
+                iron_mine
+                coal_mine
+                oil_refinery
+                steel_mill
+                aluminum_refinery
+                munitions_factory
+                police_station
+                hospital
+                recycling_center
+                subway
+                supermarket
+                bank
+                shopping_mall
+                stadium
+                barracks
+                factory
+                hangar
+                drydock
+            }
+        }}
+    }
+    """ % nation_id
+    
+    try:
+        response = requests.get(
+            "https://api.politicsandwar.com/graphql",
+            params={"api_key": api_key, "query": query}
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "errors" in data:
+            print(f"API Error: {data['errors']}")
+            return None
+            
+        nations = data.get("data", {}).get("nations", {}).get("data", [])
+        return nations[0].get("cities", []) if nations else None
+        
+    except Exception as e:
+        print(f"Error fetching city data: {e}")
+        return None
+
+
+def GET_PURGE_NATIONS(API_KEY: str):
     query = f'''
-    {{
-      nations(id:{nation_id}) {{ data {{
-        id
-        score
-        color
-        population
-        nation_name
-        leader_name
-        soldiers
-        tanks
-        aircraft
-        ships
-        money
-        coal
-        oil
-        uranium
-        iron
-        bauxite
-        lead
-        gasoline
-        munitions
-        steel
-        aluminum
-        food
-        credits
-        continent
-        discord
-        spies_today
-        
-        iron_works
-        bauxite_works
-        arms_stockpile
-        emergency_gasoline_reserve
-        mass_irrigation
-        international_trade_center
-        missile_launch_pad
-        nuclear_research_facility
-        iron_dome
-        vital_defense_system
-        central_intelligence_agency
-        center_for_civil_engineering
-        propaganda_bureau
-        uranium_enrichment_program
-        urban_planning
-        advanced_urban_planning
-        space_program
-        spy_satellite
-        moon_landing
-        pirate_economy
-        recycling_initiative
-        telecommunications_satellite
-        green_technologies
-        arable_land_agency
-        clinical_research_center
-        specialized_police_training_program
-        advanced_engineering_corps
-        government_support_agency
-        research_and_development_center
-        metropolitan_planning
-        military_salvage
-        fallout_shelter
-        activity_center
-        bureau_of_domestic_affairs
-        advanced_pirate_economy
-        mars_landing
-        surveillance_network
-        guiding_satellite
-        nuclear_launch_facility
-
-        alliance {{
+        {{
+        nations(max_score: 2000, color: "purple") {{ data {{
             id
-            name
-        }}
-        
-        wars {{
-            id
-            
-            attacker {{
+            score
+            color
+            nation_name
+            leader_name
+            alliance {{
                 id
-                nation_name
-                leader_name
-                soldiers
-                tanks
-                aircraft
-                ships
-                money
-                coal
-                oil
-                uranium
-                iron
-                bauxite
-                lead
-                gasoline
-                munitions
-                steel
-                aluminum
-                food
-                credits
-
-                alliance {{
-                    id
-                    name
-                }}
+                name
+                rank
             }}
-
-            defender {{
-                id
-                nation_name
-                leader_name
-                soldiers
-                tanks
-                aircraft
-                ships
-                money
-                coal
-                oil
-                uranium
-                iron
-                bauxite
-                lead
-                gasoline
-                munitions
-                steel
-                aluminum
-                food
-                credits
-
-                alliance {{
-                    id
-                    name
-                }}
-            }}
-            
-            war_type
-            turns_left
-            att_points
-            def_points
-            att_peace
-            def_peace
-            att_resistance
-            def_resistance
-            att_fortify
-            def_fortify
-            ground_control
-            air_superiority
-            naval_blockade
+        }}}}
         }}
-        
-        cities {{
-          date
-          infrastructure
-          land
-          coal_power
-          oil_power
-          nuclear_power
-          wind_power
-          farm
-          uranium_mine
-          iron_mine
-          coal_mine
-          oil_refinery
-          steel_mill
-          aluminum_refinery
-          munitions_factory
-          police_station
-          hospital
-          recycling_center
-          subway
-          supermarket
-          bank
-          shopping_mall
-          stadium
-          barracks
-          factory
-          hangar
-          drydock
-        }}
-      }}}}
-    }}
     '''
     url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
     try:
@@ -285,92 +290,16 @@ def GET_NATION_DATA(nation_id: int, API_KEY: str):
 
     try:
         nation = response.json()
-        # Extract the nation info from the nested structure.
         nation_list = nation.get("data", {}).get("nations", {}).get("data", [])
         if not nation_list:
-            print("Nation not found in the API response.")
+            print("No nations found in the API response.")
             return
-        nation_info = nation_list[0]
+
+        return nation_list
+
     except Exception as e:
         print(f"Error parsing API response: {e}")
         return
-    
-    return nation_info
-
-
-def GET_PURPLE_NATIONS(API_KEY: str):
-    all_nations = []
-    per_page = 100
-    page = 1
-
-    while True:
-        query = f"""{{
-        nations(first:{per_page}, page:{page}, vmode: false, color:"purple") {{
-            paginatorInfo {{
-                currentPage
-                lastPage
-            }}
-            data {{
-                id
-                nation_name
-                leader_name
-                soldiers
-                tanks
-                aircraft
-                ships
-                money
-                oil
-                uranium
-                iron
-                bauxite
-                lead
-                coal
-                gasoline
-                munitions
-                steel
-                aluminum
-                food
-                credits
-                population
-                defensive_wars_count
-                last_active
-
-                alliance {{
-                    id
-                    name
-                }}
-
-                cities {{
-                    date
-                }}
-            }}
-        }}
-        }}"""
-
-        url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
-        
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f"API request failed on page {page}: {e}")
-            return
-
-        try:
-            data = response.json()
-            nations_block = data.get("data", {}).get("nations", {})
-            if not nations_block:
-                print(f"No nation data found on page {page}.")
-                return
-            all_nations.extend(nations_block.get("data", []))
-            if page >= nations_block.get("paginatorInfo", {}).get("lastPage", 1):
-                break
-            page += 1
-        except (ValueError, KeyError, TypeError) as e:
-            print(f"Error parsing API response on page {page}: {e}")
-            return
-
-    return all_nations
 
 
 
@@ -411,3 +340,176 @@ def GET_GAME_DATA(API_KEY: str):
         return
     
     return game_data
+
+def GET_WAR_DATA(war_id: int, api_key: str) -> Optional[Dict]:
+    """Get war data from the API."""
+    query = """
+    {
+        wars(id:%d) { data {
+            id
+            attacker {
+                id
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                alliance {
+                    id
+                    name
+                }
+            }
+            defender {
+                id
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                alliance {
+                    id
+                    name
+                }
+            }
+            war_type
+            turns_left
+            att_points
+            def_points
+            att_peace
+            def_peace
+            att_resistance
+            def_resistance
+            att_fortify
+            def_fortify
+            ground_control
+            air_superiority
+            naval_blockade
+        }}
+    }
+    """ % war_id
+    
+    try:
+        response = requests.get(
+            "https://api.politicsandwar.com/graphql",
+            params={"api_key": api_key, "query": query}
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "errors" in data:
+            print(f"API Error: {data['errors']}")
+            return None
+            
+        wars = data.get("data", {}).get("wars", {}).get("data", [])
+        return wars[0] if wars else None
+        
+    except Exception as e:
+        print(f"Error fetching war data: {e}")
+        return None
+
+def GET_WARS(params: Dict, api_key: str) -> List[Dict]:
+    """Get war data from the API."""
+    query = """
+    query Wars($id: [Int], $min_id: Int, $max_id: Int, $before: DateTime, $after: DateTime, 
+              $ended_before: DateTime, $ended_after: DateTime, $attid: [Int], $defid: [Int], 
+              $or_id: [Int], $days_ago: Int, $active: Boolean, $status: WarActivity, 
+              $nation_id: [Int], $alliance_id: [Int], $orderBy: [QueryWarsOrderByOrderByClause!], 
+              $first: Int, $page: Int) {
+        wars(id: $id, min_id: $min_id, max_id: $max_id, before: $before, after: $after,
+             ended_before: $ended_before, ended_after: $ended_after, attid: $attid, defid: $defid,
+             or_id: $or_id, days_ago: $days_ago, active: $active, status: $status,
+             nation_id: $nation_id, alliance_id: $alliance_id, orderBy: $orderBy,
+             first: $first, page: $page) {
+            data {
+                id
+                date
+                end_date
+                reason
+                war_type
+                ground_control
+                air_superiority
+                naval_blockade
+                winner_id
+                turns_left
+                att_id
+                att_alliance_id
+                att_alliance_position
+                def_id
+                def_alliance_id
+                def_alliance_position
+                att_points
+                def_points
+                att_peace
+                def_peace
+                att_resistance
+                def_resistance
+                att_fortify
+                def_fortify
+                att_gas_used
+                def_gas_used
+                att_mun_used
+                def_mun_used
+                att_alum_used
+                def_alum_used
+                att_steel_used
+                def_steel_used
+                att_infra_destroyed
+                def_infra_destroyed
+                att_money_looted
+                def_money_looted
+                def_soldiers_lost
+                att_soldiers_lost
+                def_tanks_lost
+                att_tanks_lost
+                def_aircraft_lost
+                att_aircraft_lost
+                def_ships_lost
+                att_ships_lost
+                att_missiles_used
+                def_missiles_used
+                att_nukes_used
+                def_nukes_used
+                att_infra_destroyed_value
+                def_infra_destroyed_value
+                attacker {
+                    id
+                    leader_name
+                    nation_name
+                    alliance {
+                        id
+                        name
+                    }
+                }
+                defender {
+                    id
+                    leader_name
+                    nation_name
+                    alliance {
+                        id
+                        name
+                    }
+                }
+            }
+        }
+    }
+    """
+    
+    try:
+        response = requests.post(
+            "https://api.politicsandwar.com/graphql",
+            json={"query": query, "variables": params},
+            params={"api_key": api_key}
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "errors" in data:
+            error(f"API Error: {data['errors']}", tag="WARS")
+            return []
+        
+        return data["data"]["wars"]["data"]
+    except Exception as e:
+        error(f"Error fetching war data: {e}", tag="WARS")
+        return []
