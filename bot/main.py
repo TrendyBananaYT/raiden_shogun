@@ -38,6 +38,10 @@ MILITARY_COSTS = vars.MILITARY_COSTS
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+bot.config = config  # Add config to bot instance
+
+GUILD_ID = 1279582264568713308  # Provided guild/server ID
+GUILD_OBJECT = discord.Object(id=GUILD_ID)
 
 async def check_latency():
     """Monitor bot latency."""
@@ -60,7 +64,7 @@ async def on_ready():
     """Event handler for when the bot is ready."""
     try:
         # Load cogs
-        for cog in ["bot.cogs.audit", "bot.cogs.utility", "bot.cogs.nation", "bot.cogs.feedback", "bot.cogs.military", "bot.cogs.war"]:
+        for cog in ["bot.cogs.audit", "bot.cogs.utility", "bot.cogs.nation", "bot.cogs.feedback", "bot.cogs.military", "bot.cogs.war", "bot.cogs.user"]:
             try:
                 await bot.load_extension(cog)
                 info(f"Successfully loaded extension: {cog}")
@@ -68,18 +72,17 @@ async def on_ready():
                 error(f"Failed to load extension {cog}: {e}")
                 fatal(f"Extension load error details: {traceback.format_exc()}")
                 raise  # Re-raise to prevent bot from starting with missing functionality
-        
         # Sync commands
         try:
             synced = await bot.tree.sync()
             info(f"Successfully synced {len(synced)} commands")
+            # Clear old guild commands for the specified guild
+            bot.tree.clear_commands(guild=GUILD_OBJECT)
         except Exception as e:
             error(f"Failed to sync commands: {e}")
             fatal(f"Command sync error details: {traceback.format_exc()}")
             raise  # Re-raise to prevent bot from starting with unsynced commands
-        
         success(f"Bot is ready! Logged in as {bot.user} (ID: {bot.user.id})")
-        
         # Start latency monitoring
         if not hasattr(bot, 'latency_task'):
             bot.latency_task = bot.loop.create_task(check_latency())
@@ -96,23 +99,23 @@ async def on_error(event, *args, **kwargs):
     fatal(f"Event error details: {traceback.format_exc()}")
 
 @bot.event
-async def on_command_error(ctx, error):
+async def on_command_error(ctx, err):
     """Global error handler for all commands."""
-    if isinstance(error, commands.CommandNotFound):
+    if isinstance(err, commands.CommandNotFound):
         warning(f"Command not found: {ctx.message.content}", tag="COMMAND")
         return
     
-    if isinstance(error, commands.MissingPermissions):
+    if isinstance(err, commands.MissingPermissions):
         warning(f"Missing permissions for command: {ctx.message.content}", tag="PERMISSIONS")
         await ctx.send("You don't have permission to use this command.")
         return
     
-    if isinstance(error, commands.MissingRequiredArgument):
+    if isinstance(err, commands.MissingRequiredArgument):
         warning(f"Missing required argument for command: {ctx.message.content}", tag="ARGUMENTS")
-        await ctx.send(f"Missing required argument: {error.param.name}")
+        await ctx.send(f"Missing required argument: {err.param.name}")
         return
     
-    error(f"Command error in {ctx.command}: {error}", tag="COMMAND_ERROR")
+    error(f"Command error in {ctx.command}: {err}", tag="COMMAND_ERROR")
     fatal(f"Command error details: {traceback.format_exc()}")
 
 def main():

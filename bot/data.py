@@ -4,8 +4,10 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import pytz
 from bot.handler import error
+import time
 
-def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
+def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str, max_retries: int = 3):
+    """Get alliance members from the API with retry logic."""
     query = f"""{{
     nations(first:500, vmode: false, alliance_id:{ALLIANCE_ID}) {{data {{
         id
@@ -78,128 +80,158 @@ def GET_ALLIANCE_MEMBERS(ALLIANCE_ID: int, API_KEY: str):
     
     url = f"https://api.politicsandwar.com/graphql?api_key={API_KEY}&query={query}"
     
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"API request failed: {e}")
-        return
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Check for API errors
+            if "errors" in data:
+                error_msg = data["errors"][0] if isinstance(data["errors"], list) else data["errors"]
+                error_type = error_msg.get("extensions", {}).get("category", "unknown")
+                
+                # If it's an internal server error, retry after a delay
+                if error_type == "internal":
+                    if attempt < max_retries - 1:
+                        error(f"Internal server error, retrying... (Attempt {attempt + 1}/{max_retries})", tag="ALLIANCE_MEMBERS")
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                        continue
+                    else:
+                        error(f"Internal server error after {max_retries} attempts", tag="ALLIANCE_MEMBERS")
+                        return None
+                else:
+                    error(f"API Error: {error_msg}", tag="ALLIANCE_MEMBERS")
+                    return None
+            
+            members = data.get("data", {}).get("nations", {}).get("data", [])
+            if not members:
+                error("No members found in the API response.", tag="ALLIANCE_MEMBERS")
+                return None
+                
+            return members
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                error(f"API request failed, retrying... (Attempt {attempt + 1}/{max_retries}): {e}", tag="ALLIANCE_MEMBERS")
+                time.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            else:
+                error(f"API request failed after {max_retries} attempts: {e}", tag="ALLIANCE_MEMBERS")
+                return None
+                
+        except (ValueError, KeyError, TypeError) as e:
+            error(f"Error parsing API response: {e}", tag="ALLIANCE_MEMBERS")
+            return None
     
-    try:
-        data = response.json()
-        members = data.get("data", {}).get("nations", {}).get("data", [])
-        if not members:
-            print("No members found in the API response.")
-            return
-    except (ValueError, KeyError, TypeError) as e:
-        print(f"Error parsing API response: {e}")
-        return
-    
-    return members
+    return None
 
 
 def GET_NATION_DATA(nation_id: int, api_key: str) -> Optional[Dict]:
     """Get nation data from the API."""
     query = """
     {
-        nations(id:%d) { data {
-            last_active
-            flag
-            id
-            score
-            color
-            population
-            nation_name
-            leader_name
-            soldiers
-            tanks
-            aircraft
-            ships
-            money
-            coal
-            oil
-            uranium
-            iron
-            bauxite
-            lead
-            gasoline
-            munitions
-            steel
-            aluminum
-            food
-            credits
-            continent
-            discord
-            spies_today
-            
-            alliance {
+        nations(id: %d) { 
+            data {
+                last_active
+                flag
                 id
-                name
-            }
-            
-            wars {
-                id
-                attacker {
+                score
+                color
+                population
+                nation_name
+                leader_name
+                soldiers
+                tanks
+                aircraft
+                ships
+                money
+                coal
+                oil
+                uranium
+                iron
+                bauxite
+                lead
+                gasoline
+                munitions
+                steel
+                aluminum
+                food
+                credits
+                continent
+                discord
+                spies_today
+                
+                alliance {
                     id
-                    nation_name
-                    leader_name
-                    soldiers
-                    tanks
-                    aircraft
-                    ships
-                    alliance {
-                        id
-                        name
-                    }
+                    name
                 }
-                defender {
+                
+                wars {
                     id
-                    nation_name
-                    leader_name
-                    soldiers
-                    tanks
-                    aircraft
-                    ships
-                    alliance {
+                    attacker {
                         id
-                        name
+                        nation_name
+                        leader_name
+                        soldiers
+                        tanks
+                        aircraft
+                        ships
+                        alliance {
+                            id
+                            name
+                        }
                     }
+                    defender {
+                        id
+                        nation_name
+                        leader_name
+                        soldiers
+                        tanks
+                        aircraft
+                        ships
+                        alliance {
+                            id
+                            name
+                        }
+                    }
+                    war_type
+                    turns_left
+                    att_points
+                    def_points
+                    att_peace
+                    def_peace
+                    att_resistance
+                    def_resistance
+                    att_fortify
+                    def_fortify
+                    ground_control
+                    air_superiority
+                    naval_blockade
                 }
-                war_type
-                turns_left
-                att_points
-                def_points
-                att_peace
-                def_peace
-                att_resistance
-                def_resistance
-                att_fortify
-                def_fortify
-                ground_control
-                air_superiority
-                naval_blockade
             }
-        }}
+        }
     }
     """ % nation_id
     
     try:
-        response = requests.get(
+        response = requests.post(
             "https://api.politicsandwar.com/graphql",
-            params={"api_key": api_key, "query": query}
+            json={"query": query, "variables": {"id": [nation_id]}},
+            params={"api_key": api_key}
         )
         response.raise_for_status()
         data = response.json()
         
         if "errors" in data:
-            print(f"API Error: {data['errors']}")
+            error(f"API Error in GET_NATION_DATA: {data['errors']}", tag="NATION")
             return None
             
         nations = data.get("data", {}).get("nations", {}).get("data", [])
         return nations[0] if nations else None
         
     except Exception as e:
-        print(f"Error fetching nation data: {e}")
+        error(f"Error fetching nation data: {e}", tag="NATION")
         return None
 
 
@@ -513,3 +545,69 @@ def GET_WARS(params: Dict, api_key: str) -> List[Dict]:
     except Exception as e:
         error(f"Error fetching war data: {e}", tag="WARS")
         return []
+
+def GET_ALL_NATIONS(api_key: str) -> Optional[List[Dict]]:
+    """Get all nations from the API in chunks of 500."""
+    all_nations = []
+    page = 1
+    
+    while True:
+        query = """
+        {{
+            nations(first: 500, page: %d) {{ 
+                data {{
+                    id
+                    nation_name
+                    leader_name
+                    score
+                    population
+                    soldiers
+                    tanks
+                    aircraft
+                    ships
+                    alliance {{
+                        id
+                        name
+                    }}
+                    cities {{
+                        infrastructure
+                    }}
+                }
+            }}
+        }}
+        """ % page
+        
+        try:
+            response = requests.get(
+                "https://api.politicsandwar.com/graphql",
+                params={"api_key": api_key, "query": query},
+                timeout=30  # Add timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if "errors" in data:
+                error(f"API Error in GET_ALL_NATIONS: {data['errors']}", tag="NATIONS")
+                return None
+                
+            nations = data.get("data", {}).get("nations", {}).get("data", [])
+            if not nations:  # No more nations to fetch
+                break
+                
+            all_nations.extend(nations)
+            page += 1
+            
+            # Add a small delay between requests to avoid rate limiting
+            time.sleep(0.5)
+            
+        except requests.exceptions.Timeout:
+            error("Timeout while fetching nations data", tag="NATIONS")
+            return None
+        except requests.exceptions.RequestException as e:
+            error(f"Request error while fetching nations: {e}", tag="NATIONS")
+            return None
+        except Exception as e:
+            error(f"Unexpected error in GET_ALL_NATIONS: {e}", tag="NATIONS")
+            return None
+    
+    return all_nations if all_nations else None

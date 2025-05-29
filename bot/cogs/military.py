@@ -99,37 +99,53 @@ class MilitaryCog(commands.Cog):
         
         return items
     
-    @app_commands.command(name="military", description="Check a nation's military capacity and usage.")
-    @app_commands.describe(nation_id="The ID of the nation to check.")
-    async def military(self, interaction: discord.Interaction, nation_id: int):
-        """Check a nation's military capacity and usage."""
+    def get_user_nation(self, user_id: int) -> Optional[int]:
+        """Get a user's registered nation ID."""
         try:
-            await interaction.response.defer()
-            
-            # Get nation and city data
+            user_cog = self.bot.get_cog("UserCog")
+            if user_cog:
+                return user_cog.get_user_nation(user_id)
+        except Exception as e:
+            error(f"Error getting user nation: {e}", tag="MILITARY")
+        return None
+    
+    async def military_logic(self, interaction, nation_id: int = None, ctx=None):
+        try:
+            if nation_id is None:
+                user_id = interaction.user.id if interaction else ctx.author.id
+                nation_id = self.get_user_nation(user_id)
+                if nation_id is None:
+                    msg = (
+                        ":warning: No Nation ID Provided\n"
+                        "Please provide a nation ID or register your nation using `/register`."
+                    )
+                    if interaction:
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await ctx.send(msg)
+                    return
             nation = get_data.GET_NATION_DATA(nation_id, self.config.API_KEY)
             if not nation:
-                await interaction.followup.send("Nation not found.", ephemeral=True)
+                if interaction:
+                    await interaction.followup.send("Nation not found.", ephemeral=True)
+                else:
+                    await ctx.send("Nation not found.")
                 return
-                
             cities = get_data.GET_CITY_DATA(nation_id, self.config.API_KEY)
             if not cities:
-                await interaction.followup.send("Could not fetch city data.", ephemeral=True)
+                if interaction:
+                    await interaction.followup.send("Could not fetch city data.", ephemeral=True)
+                else:
+                    await ctx.send("Could not fetch city data.")
                 return
-            
-            # Calculate capacities and usage
             capacity = self.calculate_military_capacity(cities)
             usage = self.calculate_military_usage(nation)
-            
-            # Create city links
             city_links = []
             for city in cities:
                 city_id = city.get("id")
                 city_name = city.get("name", "Unknown")
                 if city_id:
                     city_links.append(f"[{city_name}](https://politicsandwar.com/city/id={city_id})")
-            
-            # Create embed
             embed = create_embed(
                 title=f"Military Status for {nation.get('nation_name', 'Unknown')}",
                 description=(
@@ -164,39 +180,59 @@ class MilitaryCog(commands.Cog):
                     }
                 ]
             )
-            
-            await interaction.followup.send(embed=embed)
-            info(f"Military command executed for nation {nation_id} by {interaction.user}", tag="MILITARY")
-            
+            if interaction:
+                await interaction.followup.send(embed=embed)
+            else:
+                await ctx.send(embed=embed)
+            info(f"Military command executed for nation {nation_id} by {interaction.user if interaction else ctx.author}", tag="MILITARY")
         except Exception as e:
             error(f"Error in military command: {e}", tag="MILITARY")
-            await interaction.followup.send("An error occurred while fetching military information.", ephemeral=True)
-    
-    @app_commands.command(name="mmr", description="Check a nation's MMR (Military Management Rating) status.")
-    @app_commands.describe(nation_id="The ID of the nation to check.")
-    async def mmr(self, interaction: discord.Interaction, nation_id: int):
-        """Check a nation's MMR status."""
+            msg = "An error occurred while fetching military information."
+            if interaction:
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await ctx.send(msg)
+
+    @app_commands.command(name="military", description="Check a nation's military capacity and usage.")
+    @app_commands.describe(nation_id="The ID of the nation to check (optional if you're registered)")
+    async def military(self, interaction: discord.Interaction, nation_id: int = None):
+        await self.military_logic(interaction, nation_id)
+
+    @commands.command(name="military")
+    async def military_prefix(self, ctx, nation_id: int = None):
+        await self.military_logic(None, nation_id, ctx=ctx)
+
+    async def mmr_logic(self, interaction, nation_id: int = None, ctx=None):
         try:
-            await interaction.response.defer()
-            
-            # Get nation and city data
+            if nation_id is None:
+                user_id = interaction.user.id if interaction else ctx.author.id
+                nation_id = self.get_user_nation(user_id)
+                if nation_id is None:
+                    msg = (
+                        ":warning: No Nation ID Provided\n"
+                        "Please provide a nation ID or register your nation using `/register`."
+                    )
+                    if interaction:
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await ctx.send(msg)
+                    return
             nation = get_data.GET_NATION_DATA(nation_id, self.config.API_KEY)
             if not nation:
-                await interaction.followup.send("Nation not found.", ephemeral=True)
+                if interaction:
+                    await interaction.followup.send("Nation not found.", ephemeral=True)
+                else:
+                    await ctx.send("Nation not found.")
                 return
-                
             cities = get_data.GET_CITY_DATA(nation_id, self.config.API_KEY)
             if not cities:
-                await interaction.followup.send("Could not fetch city data.", ephemeral=True)
+                if interaction:
+                    await interaction.followup.send("Could not fetch city data.", ephemeral=True)
+                else:
+                    await ctx.send("Could not fetch city data.")
                 return
-            
-            # Determine role based on city count
             role = "Whale" if len(cities) >= 15 else "Raider"
-            
-            # Create grid items for cities
             grid_items = self.create_city_grid_items(cities, role)
-            
-            # Create grid paginator
             paginator = GridPaginator(grid_items)
             embeds = paginator.get_embeds(
                 title=f"MMR Status for {nation.get('nation_name', 'Unknown')}",
@@ -211,16 +247,28 @@ class MilitaryCog(commands.Cog):
                 ),
                 color=discord.Color.blue()
             )
-            
-            # Create and send paginated view
             view = PaginatorView(embeds)
-            await interaction.followup.send(embed=embeds[0], view=view)
-            
-            info(f"MMR command executed for nation {nation_id} by {interaction.user}", tag="MMR")
-            
+            if interaction:
+                await interaction.followup.send(embed=embeds[0], view=view)
+            else:
+                await ctx.send(embed=embeds[0])
+            info(f"MMR command executed for nation {nation_id} by {interaction.user if interaction else ctx.author}", tag="MMR")
         except Exception as e:
             error(f"Error in MMR command: {e}", tag="MMR")
-            await interaction.followup.send("An error occurred while checking MMR status.", ephemeral=True)
+            msg = "An error occurred while checking MMR status."
+            if interaction:
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await ctx.send(msg)
+
+    @app_commands.command(name="mmr", description="Check a nation's MMR (Military Management Rating) status.")
+    @app_commands.describe(nation_id="The ID of the nation to check (optional if you're registered)")
+    async def mmr(self, interaction: discord.Interaction, nation_id: int = None):
+        await self.mmr_logic(interaction, nation_id)
+
+    @commands.command(name="mmr")
+    async def mmr_prefix(self, ctx, nation_id: int = None):
+        await self.mmr_logic(None, nation_id, ctx=ctx)
 
 async def setup(bot: commands.Bot):
     """Set up the military cog."""

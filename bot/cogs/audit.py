@@ -245,6 +245,17 @@ class AuditCog(commands.Cog):
         await interaction.response.defer()
         
         members = get_data.GET_ALLIANCE_MEMBERS(self.config.ALLIANCE_ID, self.config.API_KEY)
+        if members is None:
+            await interaction.followup.send(
+                embed=create_embed(
+                    title=":warning: Error Fetching Alliance Members",
+                    description="Failed to fetch alliance members. Please try again later.",
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+            return
+            
         audit_results = []
         current_time = time.time()
         one_day_seconds = 86400

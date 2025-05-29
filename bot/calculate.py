@@ -134,7 +134,7 @@ def warchest(nation_info, COSTS, MILITARY_COSTS):
         required_bauxite = total_aluminum_refinery_bauxite * 60
         required_lead = total_munitions_factory_lead * 60
         required_food = total_food_consumption * 60
-        required_credits = 1 - nation_info.get("credits", 0)
+        required_credits = 1 - nation_info.get("credits", 0) 
 
         # Get current resource amounts.
         current_coal = nation_info.get("coal", 0)
